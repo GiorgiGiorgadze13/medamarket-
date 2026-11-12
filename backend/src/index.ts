@@ -47,3 +47,7 @@ if (!process.env.VERCEL) {
 }
 
 export default app
+// Compatibility with CommonJS loaders in serverless environments
+module.exports = app
+module.exports.default = app
+
