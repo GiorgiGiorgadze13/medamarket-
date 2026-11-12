@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npx --prefix backend prisma generate && npm --prefix frontend run build"
+    "postinstall": "prisma generate --schema=backend/prisma/schema.prisma",
+    "build": "npx --prefix backend prisma generate && npm --prefix backend run build && npm --prefix frontend run build"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
