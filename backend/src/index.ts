@@ -21,18 +21,22 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// Routes
-app.use('/api/auth', authRouter)
-app.use('/api/products', productsRouter)
-app.use('/api/sales', salesRouter)
-app.use('/api/inventory', inventoryRouter)
-app.use('/api/dashboard', dashboardRouter)
-app.use('/api/employees', employeesRouter)
-
-// Health check
-app.get('/api/health', (_req, res) => {
+// Unified API router
+const apiRouter = express.Router()
+apiRouter.use('/auth', authRouter)
+apiRouter.use('/products', productsRouter)
+apiRouter.use('/sales', salesRouter)
+apiRouter.use('/inventory', inventoryRouter)
+apiRouter.use('/dashboard', dashboardRouter)
+apiRouter.use('/employees', employeesRouter)
+apiRouter.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
+
+// Mount on /api for local dev and standard Vercel rewrites,
+// plus root fallback in case a serverless router already stripped /api
+app.use('/api', apiRouter)
+app.use(apiRouter)
 
 app.use(errorHandler)
 

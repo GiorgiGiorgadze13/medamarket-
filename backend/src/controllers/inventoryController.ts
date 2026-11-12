@@ -1,10 +1,8 @@
 import { Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../prisma'
 import { MovementType } from '../types/enums'
 import { AuthRequest } from '../middleware/auth'
 import { v4 as uuidv4 } from 'uuid'
-
-const prisma = new PrismaClient()
 
 export const getInventoryHistory = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

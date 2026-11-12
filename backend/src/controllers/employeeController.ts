@@ -1,9 +1,7 @@
 import { Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../prisma'
 import { Role } from '../types/enums'
 import { AuthRequest } from '../middleware/auth'
-
-const prisma = new PrismaClient()
 
 export const getEmployees = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
