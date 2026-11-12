@@ -108,8 +108,8 @@ export default function POSPage() {
         api.products.getAll(),
         api.products.getCategories(),
       ])
-      setProducts(prodsData)
-      setCategories(catsData)
+      setProducts(Array.isArray(prodsData) ? prodsData : [])
+      setCategories(Array.isArray(catsData) ? catsData : [])
     } catch (err) {
       console.error(err)
       toast.error('პროდუქტების ჩატვირთვა ვერ მოხერხდა')
@@ -190,7 +190,7 @@ export default function POSPage() {
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    return (products || []).filter((p) => {
       const matchesCategory = selectedCategory === 'ALL' || p.categoryId === selectedCategory
       const query = searchQuery.toLowerCase().trim()
       const matchesSearch =
@@ -588,9 +588,9 @@ export default function POSPage() {
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              ყველა ({products.length})
+              ყველა ({(products || []).length})
             </button>
-            {categories.map((cat) => (
+            {(categories || []).map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}

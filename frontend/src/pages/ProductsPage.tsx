@@ -64,8 +64,8 @@ export default function ProductsPage() {
         api.products.getAll(),
         api.products.getCategories(),
       ])
-      setProducts(prodsData)
-      setCategories(catsData)
+      setProducts(Array.isArray(prodsData) ? prodsData : [])
+      setCategories(Array.isArray(catsData) ? catsData : [])
     } catch (err) {
       console.error(err)
       toast.error('მონაცემების ჩატვირთვა ვერ მოხერხდა')
@@ -241,7 +241,7 @@ export default function ProductsPage() {
 
   // Filtered and Sorted Products
   const filteredProducts = useMemo(() => {
-    return products
+    return (products || [])
       .filter((p) => {
         const matchesCategory = selectedCategory === 'ALL' || p.categoryId === selectedCategory
         const q = searchQuery.toLowerCase().trim()
@@ -270,10 +270,11 @@ export default function ProductsPage() {
 
   // Summary Metrics
   const metrics = useMemo(() => {
-    const totalCount = products.length
-    const lowStockCount = products.filter((p) => p.stock > 0 && p.stock <= p.minStockLevel).length
-    const outOfStockCount = products.filter((p) => p.stock <= 0).length
-    const totalInventoryValue = products.reduce(
+    const list = products || []
+    const totalCount = list.length
+    const lowStockCount = list.filter((p) => p.stock > 0 && p.stock <= p.minStockLevel).length
+    const outOfStockCount = list.filter((p) => p.stock <= 0).length
+    const totalInventoryValue = list.reduce(
       (sum, p) => sum + Number(p.purchasePrice) * p.stock,
       0
     )

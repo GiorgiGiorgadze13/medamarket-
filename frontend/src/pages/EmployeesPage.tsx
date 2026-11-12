@@ -43,7 +43,7 @@ export default function EmployeesPage() {
     setIsLoading(true)
     try {
       const data = await api.employees.getAll()
-      setEmployees(data)
+      setEmployees(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error(err)
       toast.error('თანამშრომლების ჩატვირთვა ვერ მოხერხდა')

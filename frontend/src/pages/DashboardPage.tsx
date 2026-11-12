@@ -52,9 +52,9 @@ export default function DashboardPage() {
         api.products.getAll({ lowStock: true }),
       ])
       setStats(statsData)
-      setChartData(chartRes)
-      setBestSellers(bestSellersData)
-      setLowStockProducts(prods)
+      setChartData(Array.isArray(chartRes) ? chartRes : [])
+      setBestSellers(Array.isArray(bestSellersData) ? bestSellersData : [])
+      setLowStockProducts(Array.isArray(prods) ? prods : [])
     } catch (err) {
       console.error(err)
       toast.error('ანალიტიკის ჩატვირთვა ვერ მოხერხდა')

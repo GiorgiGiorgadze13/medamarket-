@@ -45,8 +45,8 @@ export default function SalesPage() {
         page,
         limit,
       })
-      setSales(data.sales)
-      setTotal(data.total)
+      setSales(Array.isArray(data?.sales) ? data.sales : [])
+      setTotal(typeof data?.total === 'number' ? data.total : 0)
     } catch (err) {
       console.error(err)
       toast.error('გაყიდვების ისტორიის ჩატვირთვა ვერ მოხერხდა')

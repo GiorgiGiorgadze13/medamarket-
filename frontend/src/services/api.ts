@@ -80,11 +80,13 @@ export const api = {
       outOfStock?: boolean
     }) => {
       const res = await apiClient.get<{ products: Product[] }>('/products', { params })
-      return res.data.products
+      if (Array.isArray(res.data?.products)) return res.data.products
+      if (Array.isArray(res.data)) return res.data
+      return []
     },
     getByBarcode: async (barcode: string) => {
       const res = await apiClient.get<{ product: Product }>(`/products/barcode/${encodeURIComponent(barcode)}`)
-      return res.data.product
+      return res.data?.product || null
     },
     create: async (data: {
       name: string
@@ -120,7 +122,9 @@ export const api = {
     },
     getCategories: async () => {
       const res = await apiClient.get<{ categories: Category[] }>('/products/categories')
-      return res.data.categories
+      if (Array.isArray(res.data?.categories)) return res.data.categories
+      if (Array.isArray(res.data)) return res.data
+      return []
     },
     createCategory: async (name: string) => {
       const res = await apiClient.post<{ category: Category }>('/products/categories', { name })
@@ -147,7 +151,12 @@ export const api = {
         page: number
         limit: number
       }>('/sales', { params })
-      return res.data
+      return {
+        sales: Array.isArray(res.data?.sales) ? res.data.sales : (Array.isArray(res.data) ? res.data : []),
+        total: typeof res.data?.total === 'number' ? res.data.total : 0,
+        page: res.data?.page || 1,
+        limit: res.data?.limit || 20,
+      }
     },
     getById: async (id: string) => {
       const res = await apiClient.get<{ sale: Sale }>(`/sales/${id}`)
@@ -164,7 +173,12 @@ export const api = {
         page: number
         limit: number
       }>('/inventory/history', { params })
-      return res.data
+      return {
+        history: Array.isArray(res.data?.history) ? res.data.history : [],
+        total: typeof res.data?.total === 'number' ? res.data.total : 0,
+        page: res.data?.page || 1,
+        limit: res.data?.limit || 20,
+      }
     },
     addStock: async (
       productId: string,
@@ -196,11 +210,11 @@ export const api = {
     },
     getRevenueChart: async (params?: { period?: 'daily' | 'weekly' | 'monthly' | 'yearly' }) => {
       const res = await apiClient.get<{ chartData: RevenueChartData[] }>('/dashboard/revenue-chart', { params })
-      return res.data.chartData
+      return Array.isArray(res.data?.chartData) ? res.data.chartData : []
     },
     getBestSellers: async () => {
       const res = await apiClient.get<{ bestSellers: BestSeller[] }>('/dashboard/best-sellers')
-      return res.data.bestSellers
+      return Array.isArray(res.data?.bestSellers) ? res.data.bestSellers : []
     },
   },
 
@@ -208,7 +222,9 @@ export const api = {
   employees: {
     getAll: async () => {
       const res = await apiClient.get<{ employees: User[] }>('/employees')
-      return res.data.employees
+      if (Array.isArray(res.data?.employees)) return res.data.employees
+      if (Array.isArray(res.data)) return res.data
+      return []
     },
     update: async (id: string, data: Partial<{ name: string; email: string; role: Role; isActive: boolean }>) => {
       const res = await apiClient.put<{ employee: User }>(`/employees/${id}`, data)

@@ -35,6 +35,9 @@ apiRouter.get('/health', (_req, res) => {
 
 // Mount on /api for local dev and standard Vercel rewrites,
 // plus root fallback in case a serverless router already stripped /api
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', message: 'Meda Market API is live', timestamp: new Date().toISOString() })
+})
 app.use('/api', apiRouter)
 app.use(apiRouter)
 
