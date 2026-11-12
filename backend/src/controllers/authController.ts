@@ -14,14 +14,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    if (!process.env.DATABASE_URL) {
-      console.error('DATABASE_URL is not set in environment variables')
-      res.status(500).json({
-        error: 'DATABASE_URL არ არის გაწერილი Vercel-ის Environment Variables-ში. გთხოვთ დაამატოთ Vercel Settings-ში.',
-        message: 'DATABASE_URL environment variable is missing',
-      })
-      return
-    }
 
     const user = await prisma.user.findUnique({ where: { email } })
 

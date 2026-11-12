@@ -63,7 +63,7 @@ apiRouter.get('/health', async (_req, res) => {
 
 // Mount on /api for local dev and standard Vercel rewrites,
 // plus root fallback in case a serverless router already stripped /api
-app.get('/', (_req, res) => {
+const rootHandler = (_req: express.Request, res: express.Response) => {
   res.json({
     status: 'ok',
     message: 'Meda Market API is live',
@@ -73,7 +73,9 @@ app.get('/', (_req, res) => {
       hasJwtSecret: !!process.env.JWT_SECRET,
     },
   })
-})
+}
+app.get('/', rootHandler)
+app.get('/api', rootHandler)
 app.use('/api', apiRouter)
 app.use(apiRouter)
 
