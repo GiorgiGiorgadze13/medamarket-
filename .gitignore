@@ -2,9 +2,8 @@
 node_modules/
 */node_modules/
 
-# Production builds
-dist/
-*/dist/
+# Production builds - backend only (frontend/dist is committed for Vercel)
+backend/dist/
 build/
 */build/
 
