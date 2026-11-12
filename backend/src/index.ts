@@ -22,6 +22,15 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Normalize req.url for Vercel Serverless Functions
+app.use((req, _res, next) => {
+  const matchedPath = (req.headers['x-matched-path'] || req.headers['x-forwarded-uri'] || '') as string
+  if (matchedPath && matchedPath.startsWith('/api') && (req.url === '/' || req.url === '/api')) {
+    req.url = matchedPath
+  }
+  next()
+})
+
 // Unified API router
 const apiRouter = express.Router()
 apiRouter.use('/auth', authRouter)
