@@ -158,12 +158,17 @@ export const getBestSellers = async (_req: AuthRequest, res: Response): Promise<
       topSales.map(async (item) => {
         const product = await prisma.product.findUnique({
           where: { id: item.productId },
-          select: { name: true, barcode: true, sellingPrice: true, stock: true },
+          select: { id: true, name: true, barcode: true, sellingPrice: true, stock: true },
         })
         return {
+          id: product?.id || item.productId,
+          name: product?.name || 'უცნობი პროდუქტი',
+          barcode: product?.barcode || '-',
+          sellingPrice: product?.sellingPrice || 0,
+          stock: product?.stock || 0,
           product,
-          totalQuantity: item._sum.quantity || 0,
-          totalRevenue: Number(item._sum.totalPrice || 0),
+          totalQuantity: Math.round((item._sum.quantity || 0) * 100) / 100,
+          totalRevenue: Math.round(Number(item._sum.totalPrice || 0) * 100) / 100,
         }
       })
     )

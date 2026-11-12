@@ -174,6 +174,10 @@ export const api = {
       const res = await apiClient.get<{ sale: Sale }>(`/sales/${id}`)
       return res.data.sale
     },
+    delete: async (id: string) => {
+      const res = await apiClient.delete<{ message: string }>(`/sales/${id}`)
+      return res.data
+    },
   },
 
   // Inventory

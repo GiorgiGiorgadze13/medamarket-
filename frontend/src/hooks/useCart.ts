@@ -19,10 +19,10 @@ export function useCart() {
 
       if (existingIndex > -1) {
         const currentQty = prevCart[existingIndex].quantity
-        const newQty = currentQty + quantity
+        const newQty = Math.round((currentQty + quantity) * 1000) / 1000
 
         if (newQty > product.stock) {
-          toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock} ცალი!`)
+          toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock}!`)
           success = false
           return prevCart
         }
@@ -35,12 +35,12 @@ export function useCart() {
         return updated
       } else {
         if (quantity > product.stock) {
-          toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock} ცალი!`)
+          toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock}!`)
           success = false
           return prevCart
         }
 
-        return [...prevCart, { product, quantity }]
+        return [...prevCart, { product, quantity: Math.round(quantity * 1000) / 1000 }]
       }
     })
 
@@ -49,18 +49,20 @@ export function useCart() {
 
   const updateQuantity = useCallback((productId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
-      removeFromCart(productId)
+      setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId))
       return
     }
+
+    const rounded = Math.round(newQuantity * 1000) / 1000
 
     setCart((prevCart) =>
       prevCart.map((item) => {
         if (item.product.id === productId) {
-          if (newQuantity > item.product.stock) {
+          if (rounded > item.product.stock) {
             toast.error(`მაქსიმალური ხელმისაწვდომი მარაგი: ${item.product.stock}`)
             return { ...item, quantity: item.product.stock }
           }
-          return { ...item, quantity: newQuantity }
+          return { ...item, quantity: rounded }
         }
         return item
       })

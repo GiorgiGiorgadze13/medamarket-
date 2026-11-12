@@ -220,3 +220,55 @@ export const getSaleReceipt = async (req: AuthRequest, res: Response): Promise<v
     res.status(500).json({ error: 'სერვერის შეცდომა' })
   }
 }
+
+export const deleteSale = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params
+
+    const sale = await prisma.sale.findUnique({
+      where: { id },
+      include: { items: true },
+    })
+
+    if (!sale) {
+      res.status(404).json({ error: 'ჩეკი ვერ მოიძებნა' })
+      return
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Restore product stock
+      for (const item of sale.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } },
+        })
+
+        await tx.inventoryHistory.create({
+          data: {
+            id: uuidv4(),
+            productId: item.productId,
+            userId: req.user!.id,
+            movementType: MovementType.RETURN,
+            quantity: item.quantity,
+            reason: `ჩეკის წაშლა #${sale.receiptNumber}`,
+          },
+        })
+      }
+
+      // 2. Delete sale items
+      await tx.saleItem.deleteMany({
+        where: { saleId: id },
+      })
+
+      // 3. Delete sale record
+      await tx.sale.delete({
+        where: { id },
+      })
+    })
+
+    res.json({ message: 'ჩეკი წარმატებით წაიშალა და პროდუქციის მარაგი დაბრუნდა' })
+  } catch (err: any) {
+    console.error('Delete sale error:', err)
+    res.status(500).json({ error: err?.message || 'სერვერის შეცდომა' })
+  }
+}

@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  Trash2,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -35,6 +36,28 @@ export default function SalesPage() {
   // Selected Sale for Receipt Modal
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false)
+  const [deletingSaleId, setDeletingSaleId] = useState<string | null>(null)
+
+  const handleDeleteSale = async (sale: Sale) => {
+    if (
+      !window.confirm(
+        `ნამდვილად გსურთ ჩეკის #${sale.receiptNumber} წაშლა?\n\nგაყიდული პროდუქტების რაოდენობა ავტომატურად დაბრუნდება საწყობის მარაგში!`
+      )
+    ) {
+      return
+    }
+
+    setDeletingSaleId(sale.id)
+    try {
+      await api.sales.delete(sale.id)
+      toast.success(`ჩეკი #${sale.receiptNumber} წაიშალა და მარაგი დაბრუნდა!`)
+      loadSales()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'ჩეკის წაშლა ვერ მოხერხდა')
+    } finally {
+      setDeletingSaleId(null)
+    }
+  }
 
   const loadSales = async () => {
     setIsLoading(true)
@@ -319,16 +342,30 @@ export default function SalesPage() {
 
                       {/* Actions */}
                       <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedSale(sale)
-                            setIsReceiptModalOpen(true)
-                          }}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>ქვითარი</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => {
+                              setSelectedSale(sale)
+                              setIsReceiptModalOpen(true)
+                            }}
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs inline-flex items-center gap-1 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>ქვითარი</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSale(sale)}
+                            disabled={deletingSaleId === sale.id}
+                            title="ჩეკის წაშლა და მარაგის დაბრუნება"
+                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg font-bold text-xs inline-flex items-center justify-center transition-colors disabled:opacity-50"
+                          >
+                            {deletingSaleId === sale.id ? (
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -420,7 +457,10 @@ export default function SalesPage() {
                             {item.product?.name || 'პროდუქტი'}
                           </p>
                           <p className="text-[10px] text-slate-400">
-                            {item.quantity} × {Number(item.unitPrice).toFixed(2)} ₾
+                            {item.quantity < 1 || !Number.isInteger(item.quantity)
+                              ? `${item.quantity} კგ (${Math.round(item.quantity * 1000)}გ)`
+                              : `${item.quantity} ცალი`}{' '}
+                            × {Number(item.unitPrice).toFixed(2)} ₾
                           </p>
                         </div>
                         <span className="font-semibold text-slate-900">

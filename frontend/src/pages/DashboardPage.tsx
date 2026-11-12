@@ -379,15 +379,26 @@ export default function DashboardPage() {
                       {idx + 1}
                     </span>
                     <div>
-                      <p className="font-semibold text-slate-800 line-clamp-1">{item.name}</p>
-                      <span className="text-[10px] font-mono text-slate-400">{item.barcode}</span>
+                      <p className="font-semibold text-slate-800 line-clamp-1">
+                        {item.name || (item as any).product?.name || 'პროდუქტი'}
+                      </p>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {item.barcode || (item as any).product?.barcode || ''}
+                      </span>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <p className="font-bold text-slate-900">{item.totalQuantity} ცალი</p>
+                    <p className="font-bold text-slate-900">
+                      {typeof item.totalQuantity === 'number'
+                        ? Number.isInteger(item.totalQuantity)
+                          ? item.totalQuantity
+                          : item.totalQuantity.toFixed(2)
+                        : 0}{' '}
+                      {item.totalQuantity < 1 ? 'კგ' : 'ერთ.'}
+                    </p>
                     <span className="text-[11px] text-emerald-600 font-semibold">
-                      {item.totalRevenue.toFixed(2)} ₾
+                      {(Number(item.totalRevenue) || 0).toFixed(2)} ₾
                     </span>
                   </div>
                 </div>

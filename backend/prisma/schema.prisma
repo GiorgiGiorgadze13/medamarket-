@@ -36,8 +36,8 @@ model Product {
   categoryId    String
   purchasePrice Float
   sellingPrice  Float
-  stock         Int      @default(0)
-  minStockLevel Int      @default(5)
+  stock         Float    @default(0)
+  minStockLevel Float    @default(5)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -68,7 +68,7 @@ model SaleItem {
   id         String  @id @default(uuid())
   saleId     String
   productId  String
-  quantity   Int
+  quantity   Float
   unitPrice  Float
   totalPrice Float
 
@@ -81,7 +81,7 @@ model InventoryHistory {
   productId    String
   userId       String
   movementType String
-  quantity     Int
+  quantity     Float
   reason       String?
   notes        String?
   createdAt    DateTime @default(now())
