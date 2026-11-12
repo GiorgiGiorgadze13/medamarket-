@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { api } from '../services/api'
+import { api, getErrorMessage } from '../services/api'
 import { Product, Category } from '../types'
 import {
   Package,
@@ -162,8 +162,7 @@ export default function ProductsPage() {
       setIsProductModalOpen(false)
     } catch (err: any) {
       console.error(err)
-      const msg = err.response?.data?.error || 'პროდუქტის შენახვა ვერ მოხერხდა'
-      toast.error(msg)
+      toast.error(getErrorMessage(err, 'პროდუქტის შენახვა ვერ მოხერხდა'))
     } finally {
       setIsSubmitting(false)
     }
@@ -179,7 +178,7 @@ export default function ProductsPage() {
       toast.success('პროდუქტი წაიშალა')
     } catch (err: any) {
       console.error(err)
-      toast.error(err.response?.data?.error || 'წაშლა ვერ მოხერხდა')
+      toast.error(getErrorMessage(err, 'წაშლა ვერ მოხერხდა'))
     }
   }
 
@@ -216,7 +215,7 @@ export default function ProductsPage() {
       setIsStockModalOpen(false)
     } catch (err: any) {
       console.error(err)
-      toast.error(err.response?.data?.error || 'მარაგის დამატება ვერ მოხერხდა')
+      toast.error(getErrorMessage(err, 'მარაგის დამატება ვერ მოხერხდა'))
     } finally {
       setIsSubmitting(false)
     }
@@ -235,7 +234,7 @@ export default function ProductsPage() {
       setIsCategoryModalOpen(false)
       toast.success('კატეგორია დაემატა')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'კატეგორიის დამატება ვერ მოხერხდა')
+      toast.error(getErrorMessage(err, 'კატეგორიის დამატება ვერ მოხერხდა'))
     }
   }
 

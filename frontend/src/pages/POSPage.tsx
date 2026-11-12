@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { api } from '../services/api'
+import { api, getErrorMessage } from '../services/api'
 import { Product, Category, Sale, PaymentMethod } from '../types'
 import { useCart } from '../hooks/useCart'
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
@@ -280,8 +280,7 @@ export default function POSPage() {
       toast.success('გაყიდვა წარმატებით დასრულდა!')
     } catch (err: any) {
       console.error(err)
-      const msg = err.response?.data?.error || err.message || 'გაყიდვის გატარება ვერ მოხერხდა'
-      toast.error(msg)
+      toast.error(getErrorMessage(err, 'გაყიდვის გატარება ვერ მოხერხდა'))
     } finally {
       setIsSubmittingSale(false)
     }

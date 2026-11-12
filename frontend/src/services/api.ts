@@ -48,6 +48,18 @@ apiClient.interceptors.response.use(
   }
 )
 
+export function getErrorMessage(err: any, fallback = 'ოპერაცია ვერ შესრულდა'): string {
+  if (!err) return fallback
+  const errData = err?.response?.data
+  if (typeof errData === 'string' && errData.length < 200) return errData
+  if (typeof errData?.error === 'string') return errData.error
+  if (typeof errData?.message === 'string') return errData.message
+  if (typeof errData?.error?.message === 'string') return errData.error.message
+  if (typeof err?.message === 'string') return err.message
+  return fallback
+}
+
+
 export const api = {
   // Auth
   auth: {

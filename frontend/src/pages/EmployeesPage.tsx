@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { api } from '../services/api'
+import { api, getErrorMessage } from '../services/api'
 import { User, Role } from '../types'
 import {
   Users,
@@ -81,7 +81,7 @@ export default function EmployeesPage() {
       setAddRole('CASHIER')
     } catch (err: any) {
       console.error(err)
-      toast.error(err.response?.data?.error || 'თანამშრომლის დამატება ვერ მოხერხდა')
+      toast.error(getErrorMessage(err, 'თანამშრომლის დამატება ვერ მოხერხდა'))
     } finally {
       setIsSubmitting(false)
     }
@@ -115,7 +115,7 @@ export default function EmployeesPage() {
       setIsEditModalOpen(false)
     } catch (err: any) {
       console.error(err)
-      toast.error(err.response?.data?.error || 'განახლება ვერ მოხერხდა')
+      toast.error(getErrorMessage(err, 'განახლება ვერ მოხერხდა'))
     } finally {
       setIsSubmitting(false)
     }
@@ -132,7 +132,7 @@ export default function EmployeesPage() {
       )
       toast.success('თანამშრომლის პროფილი გაითიშა')
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'ოპერაცია ვერ შესრულდა')
+      toast.error(getErrorMessage(err, 'ოპერაცია ვერ შესრულდა'))
     }
   }
 

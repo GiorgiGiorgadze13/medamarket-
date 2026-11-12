@@ -34,9 +34,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       token,
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     })
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'სერვერის შეცდომა' })
+  } catch (err: any) {
+    console.error('Login error details:', err)
+    res.status(500).json({
+      error: 'სერვერის შეცდომა: მონაცემთა ბაზასთან კავშირი ვერ დამყარდა',
+      message: err?.message || 'Database error',
+    })
   }
 }
 
@@ -65,9 +68,12 @@ export const createEmployee = async (req: AuthRequest, res: Response): Promise<v
     })
 
     res.status(201).json({ user })
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'სერვერის შეცდომა' })
+  } catch (err: any) {
+    console.error('Login error details:', err)
+    res.status(500).json({
+      error: 'სერვერის შეცდომა: მონაცემთა ბაზასთან კავშირი ვერ დამყარდა',
+      message: err?.message || 'Database error',
+    })
   }
 }
 

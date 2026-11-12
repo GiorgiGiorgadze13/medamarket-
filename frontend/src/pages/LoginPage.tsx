@@ -1,6 +1,7 @@
 ﻿import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getErrorMessage } from '../services/api'
 import { ShoppingBag, Lock, Mail, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -25,8 +26,7 @@ export default function LoginPage() {
       toast.success('ავტორიზაცია წარმატებულია!')
       navigate('/pos')
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'ავტორიზაცია ვერ მოხერხდა'
-      toast.error(msg)
+      toast.error(getErrorMessage(err, 'ავტორიზაცია ვერ მოხერხდა'))
     } finally {
       setIsLoading(false)
     }
