@@ -28,10 +28,17 @@
       }
     },
     {
-      "source": "/(.*)",
+      "source": "/assets/(.*)",
       "destination": {
         "service": "frontend",
-        "path": "/$1"
+        "path": "/assets/$1"
+      }
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": {
+        "service": "frontend",
+        "path": "/index.html"
       }
     }
   ]
