@@ -3,22 +3,34 @@
 set -eo pipefail
 
 usage() {
-  echo "MedaMarket Database Restoration Runbook"
-  echo "Usage: ./scripts/restore-database.sh <backup_file> <target_database_url> [encryption_key]"
+  echo "================================================================="
+  echo "MedaMarket Disaster Recovery Restoration Tool (Bash)"
+  echo "================================================================="
+  echo "Usage:"
+  echo "  ./scripts/restore-database.sh <backup_file> <staging_database_url> <encryption_key> --confirm-staging"
   echo ""
   echo "Example:"
-  echo "  ./scripts/restore-database.sh ./backups/medamarket_20261113.sql.gz.enc \\"
-  echo "    \"postgres://user:pass@staging-host/staging_db?sslmode=require\" \\"
-  echo "    \"my-secret-key\""
+  echo "  ./scripts/restore-database.sh \\"
+  echo "    ./backups/medamarket_20261113.sql.gz.enc \\"
+  echo "    \"postgresql://user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require\" \\"
+  echo "    \"my-secret-passphrase\" \\"
+  echo "    --confirm-staging"
   exit 1
 }
 
 BACKUP_FILE="$1"
 TARGET_URL="$2"
 ENC_KEY="${3:-$BACKUP_ENCRYPTION_KEY}"
+CONFIRM_FLAG="$4"
 
 if [ -z "$BACKUP_FILE" ] || [ -z "$TARGET_URL" ]; then
   usage
+fi
+
+if [ "$CONFIRM_FLAG" != "--confirm-staging" ]; then
+  echo "[SAFETY BLOCK] Missing confirmation flag: --confirm-staging"
+  echo "You must supply --confirm-staging as the 4th argument to confirm this is a test/staging database."
+  exit 1
 fi
 
 if [ ! -f "$BACKUP_FILE" ]; then
@@ -26,18 +38,20 @@ if [ ! -f "$BACKUP_FILE" ]; then
   exit 1
 fi
 
-# Mask target URL for logs
+# Mask credentials for display
 MASKED_URL=$(echo "$TARGET_URL" | sed -E 's/(postgres(?:ql)?:\/\/[^:]+:)[^@]+(@)/\1***\2/')
-echo "====================================================="
+
+echo "================================================================="
 echo "MedaMarket Disaster Recovery Restoration"
+echo "================================================================="
 echo "Target DB: $MASKED_URL"
 echo "Backup:    $BACKUP_FILE"
-echo "====================================================="
+echo "-----------------------------------------------------------------"
 
-# Production safeguard
+# Guard: Check if target equals production DATABASE_URL
 if [ -n "$DATABASE_URL" ] && [ "$TARGET_URL" = "$DATABASE_URL" ]; then
-  echo "CRITICAL SAFETY ERROR: Target URL matches production DATABASE_URL!"
-  echo "Restoring directly into production is blocked. Provide a staging/test database."
+  echo "[CRITICAL SAFETY BLOCK] Target URL matches production DATABASE_URL!"
+  echo "Restoring directly into production is strictly blocked."
   exit 1
 fi
 
@@ -52,7 +66,7 @@ if [[ "$CURRENT_FILE" == *.enc ]]; then
     echo "Error: Backup file is encrypted (.enc) but no encryption key provided."
     exit 1
   fi
-  echo "Decrypting backup file..."
+  echo "Decrypting AES-256 PBKDF2 encrypted archive..."
   DECRYPTED="$TEMP_DIR/dump.sql.gz"
   openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 100000 \
     -in "$CURRENT_FILE" \
@@ -70,9 +84,10 @@ if [[ "$CURRENT_FILE" == *.gz ]]; then
 fi
 
 # 3. Restore via psql
-echo "Restoring database to target instance..."
+echo "Restoring to staging database with SSL mode enabled..."
+export PGSSLMODE=require
 psql "$TARGET_URL" -f "$CURRENT_FILE"
 
-echo "====================================================="
-echo "SUCCESS: Restoration completed successfully."
-echo "====================================================="
+echo "================================================================="
+echo "SUCCESS: Database restored cleanly from backup."
+echo "================================================================="

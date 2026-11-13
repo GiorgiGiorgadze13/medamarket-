@@ -7,9 +7,9 @@ This document details the automated offsite backup architecture, configuration r
 ## 1. Automated Backup Architecture
 
 - **Frequency:** Daily at 03:00 UTC (07:00 AM Georgia Time) via GitHub Actions (`.github/workflows/db-backup.yml`).
-- **Engine:** PostgreSQL `pg_dump` with `--clean --if-exists --no-owner --no-privileges`.
+- **Engine:** PostgreSQL 17 client `pg_dump` with `--clean --if-exists --no-owner --no-privileges`.
 - **Compression:** Gzip level 9 (`.sql.gz`).
-- **Encryption:** OpenSSL AES-256-CBC with PBKDF2 key derivation (100,000 iterations). Raw SQL is never transmitted or stored unencrypted.
+- **Encryption:** OpenSSL AES-256-CBC with PBKDF2 key derivation (100,000 iterations) (`.sql.gz.enc`). Raw SQL is never transmitted or stored unencrypted.
 - **Storage Target:** S3-compatible object storage (Cloudflare R2 or AWS S3).
 - **Retention Policy:**
   - **Daily:** Retains the 7 most recent daily snapshots in `s3://<bucket>/daily/`.
@@ -17,56 +17,96 @@ This document details the automated offsite backup architecture, configuration r
 
 ---
 
-## 2. Required GitHub Secrets Setup
+## 2. GitHub Secrets Configuration (Cloudflare R2 vs AWS S3)
 
 To activate the automated workflow, add the following secrets in your GitHub repository:
 **GitHub Repository -> Settings -> Secrets and variables -> Actions -> New repository secret**
 
-| Secret Name | Description | Example |
-| :--- | :--- | :--- |
-| `BACKUP_DATABASE_URL` | Full Neon PostgreSQL connection string (or use `DATABASE_URL`) | `postgresql://user:pass@ep-xyz.eu-central-1.aws.neon.tech/neondb?sslmode=require` |
-| `BACKUP_ENCRYPTION_KEY` | High-entropy secret passphrase for AES-256 encryption | Generate using `openssl rand -base64 32` |
-| `S3_ENDPOINT` | Endpoint for S3-compatible storage (leave blank for AWS S3) | `https://<account-id>.r2.cloudflarestorage.com` (Cloudflare R2) |
-| `S3_BUCKET_NAME` | Dedicated backup bucket name | `medamarket-backups` |
-| `S3_ACCESS_KEY_ID` | Storage access key ID | `0123456789abcdef` |
-| `S3_SECRET_ACCESS_KEY` | Storage secret access key | `abcdef0123456789...` |
-| `S3_REGION` | Storage region (optional, defaults to `auto`) | `auto` (for R2) or `eu-central-1` (for S3) |
+### Comparison: Cloudflare R2 vs AWS S3
+
+| Secret Name | Cloudflare R2 | AWS S3 | Description |
+| :--- | :--- | :--- | :--- |
+| `DATABASE_URL` (or `BACKUP_DATABASE_URL`) | **Mandatory** | **Mandatory** | Full Neon PostgreSQL connection string with `?sslmode=require`. |
+| `BACKUP_ENCRYPTION_KEY` | **Mandatory** | **Mandatory** | Strong random passphrase for AES-256 encryption. |
+| `S3_BUCKET_NAME` | **Mandatory** | **Mandatory** | Dedicated bucket name (e.g. `medamarket-backups`). |
+| `S3_ACCESS_KEY_ID` | **Mandatory** | **Mandatory** | R2 API token Access Key ID or AWS IAM Access Key. |
+| `S3_SECRET_ACCESS_KEY` | **Mandatory** | **Mandatory** | R2 API token Secret Access Key or AWS IAM Secret Key. |
+| `S3_ENDPOINT` | **Mandatory** | *Optional / Omit* | Cloudflare R2 Endpoint: `https://<account-id>.r2.cloudflarestorage.com`. (Leave empty for AWS S3). |
+| `S3_REGION` | *Optional (defaults to `auto`)* | **Recommended** | `auto` for R2; e.g. `eu-central-1` or `us-east-1` for AWS. |
 
 > [!IMPORTANT]
 > All credentials are automatically masked in GitHub Actions execution logs to prevent leakage.
 
 ---
 
-## 3. How to Trigger a Manual Backup
+## 3. Step-by-Step Setup Guide
 
-1. Go to your GitHub repository.
-2. Click the **Actions** tab.
-3. Select **MedaMarket Daily Database Backup & Encryption** from the left sidebar.
-4. Click **Run workflow** -> **Run workflow**.
-5. Once completed, download and verify the run logs.
+### Step 3.1: Cloudflare R2 Setup (Free tier includes 10 GB storage)
+1. Log in to [dash.cloudflare.com](https://dash.cloudflare.com).
+2. In the left navigation, select **R2** (or **Storage & Databases** -> **R2**).
+3. Click **Create bucket**, name it `medamarket-backups`, and select your preferred location (e.g. Western Europe / Automatic).
+4. On the R2 overview page, click **Manage R2 API Tokens** (in the right sidebar).
+5. Click **Create API token**:
+   - Token name: `medamarket-github-backup`
+   - Permissions: **Object Read & Write**
+   - Apply to specific bucket: `medamarket-backups`
+6. Click **Create API Token**.
+7. Copy the following values immediately:
+   - **Access Key ID** -> `S3_ACCESS_KEY_ID`
+   - **Secret Access Key** -> `S3_SECRET_ACCESS_KEY`
+   - **Endpoint** (format: `https://<account-id>.r2.cloudflarestorage.com`) -> `S3_ENDPOINT`
+
+### Step 3.2: Configure GitHub Secrets
+1. Go to your GitHub repository: `https://github.com/GiorgiGiorgadze13/medamarket-`
+2. Click **Settings** (top bar).
+3. In the left sidebar, click **Secrets and variables** -> **Actions**.
+4. Click **New repository secret** for each of the following:
+   - `BACKUP_DATABASE_URL`: Your Neon database URL (`postgres://...`).
+   - `BACKUP_ENCRYPTION_KEY`: A strong secret password (e.g., generate a 32-character random string).
+   - `S3_ENDPOINT`: `https://<account-id>.r2.cloudflarestorage.com` (for R2).
+   - `S3_BUCKET_NAME`: `medamarket-backups`
+   - `S3_ACCESS_KEY_ID`: `<R2 Access Key>`
+   - `S3_SECRET_ACCESS_KEY`: `<R2 Secret Key>`
+   - `S3_REGION`: `auto`
 
 ---
 
-## 4. Database Restoration Procedure (Disaster Recovery)
+## 4. How to Trigger and Verify a Backup
+
+1. Go to your GitHub repository.
+2. Click the **Actions** tab.
+3. Select **MedaMarket Daily Database Backup & Encryption** from the left list.
+4. Click **Run workflow** -> **Run workflow**.
+5. Click into the workflow run to observe the steps:
+   - `Install Latest PostgreSQL Client (PGDG 17) & Tools`
+   - `Verify Environment Secrets`
+   - `Run Database Dump, Compress & Encrypt`
+   - `Upload to Offsite Storage`
+   - `Apply Retention Policy`
+6. Open your Cloudflare R2 bucket (`medamarket-backups/daily/`) to verify that the file `medamarket_YYYYMMDD_HHMMSS.sql.gz.enc` and `.sha256` checksum are uploaded.
+
+---
+
+## 5. Database Restoration Procedure (Disaster Recovery)
 
 > [!CAUTION]
-> NEVER test restoration against the live production database. Always verify backups against a dedicated staging, test, or local database instance.
+> NEVER restore against the live production database! Always test restoration against a dedicated staging, Neon branch, or local database.
 
 ### Prerequisites
-- Node.js (v18+) or Bash shell with `openssl`, `gunzip`, and `psql` installed.
-- Target staging database connection string.
+- Node.js (v18+) or Bash shell.
 
-### Method A: Using Node.js Script (Windows / macOS / Linux)
+### Method A: Using Cross-Platform Node.js Script (Windows / macOS / Linux)
 
 ```bash
 # 1. Download the encrypted backup from your storage bucket
 # e.g. medamarket_20261113_030000.sql.gz.enc
 
-# 2. Run the restoration tool
+# 2. Run the restoration tool (decrypts natively with Node crypto)
 node scripts/restore-database.js \
   --backup ./medamarket_20261113_030000.sql.gz.enc \
   --target-url "postgresql://staging_user:staging_pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
-  --key "YOUR_BACKUP_ENCRYPTION_KEY"
+  --key "YOUR_BACKUP_ENCRYPTION_KEY" \
+  --confirm-staging
 ```
 
 ### Method B: Using Bash Script (Linux / macOS / Git Bash)
@@ -76,17 +116,18 @@ chmod +x ./scripts/restore-database.sh
 ./scripts/restore-database.sh \
   ./medamarket_20261113_030000.sql.gz.enc \
   "postgresql://staging_user:staging_pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
-  "YOUR_BACKUP_ENCRYPTION_KEY"
+  "YOUR_BACKUP_ENCRYPTION_KEY" \
+  --confirm-staging
 ```
 
 ---
 
-## 5. Post-Restoration Data Verification
+## 6. Post-Restoration Data Verification Queries
 
-After restoring into your test database, run the following SQL queries to verify data integrity:
+After restoring into your test database, run these SQL queries to verify data integrity:
 
 ```sql
--- 1. Check total counts
+-- 1. Check total record counts
 SELECT count(*) AS total_products FROM "Product";
 SELECT count(*) AS total_categories FROM "Category";
 SELECT count(*) AS total_sales FROM "Sale";
