@@ -1,0 +1,164 @@
+name: MedaMarket Daily Database Backup & Encryption
+
+on:
+  schedule:
+    # Runs daily at 03:00 UTC (07:00 AM Georgia time)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_weekly:
+        description: 'Force a copy to weekly retention'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  backup:
+    name: Backup, Encrypt & Upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client openssl
+
+      - name: Verify Environment Secrets
+        run: |
+          # Verify secrets exist without echoing values
+          MISSING=0
+          if [ -z "${{ secrets.DATABASE_URL }}" ] && [ -z "${{ secrets.BACKUP_DATABASE_URL }}" ]; then
+            echo "::error::Missing DATABASE_URL or BACKUP_DATABASE_URL secret"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.S3_ACCESS_KEY_ID }}" ]; then
+            echo "::error::Missing S3_ACCESS_KEY_ID secret"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.S3_SECRET_ACCESS_KEY }}" ]; then
+            echo "::error::Missing S3_SECRET_ACCESS_KEY secret"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.S3_BUCKET_NAME }}" ]; then
+            echo "::error::Missing S3_BUCKET_NAME secret"
+            MISSING=1
+          fi
+          if [ -z "${{ secrets.BACKUP_ENCRYPTION_KEY }}" ]; then
+            echo "::error::Missing BACKUP_ENCRYPTION_KEY secret for AES-256 encryption"
+            MISSING=1
+          fi
+          if [ $MISSING -eq 1 ]; then
+            exit 1
+          fi
+
+      - name: Run Database Dump, Compress & Encrypt
+        env:
+          DB_URL: ${{ secrets.BACKUP_DATABASE_URL || secrets.DATABASE_URL }}
+          ENC_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          # Mask sensitive credentials
+          echo "::add-mask::$DB_URL"
+          echo "::add-mask::$ENC_KEY"
+
+          TIMESTAMP=$(date -u +'%Y%m%d_%H%M%S')
+          DAY_OF_WEEK=$(date -u +'%u') # 7 = Sunday
+          BACKUP_NAME="medamarket_${TIMESTAMP}.sql.gz"
+          ENC_BACKUP_NAME="${BACKUP_NAME}.enc"
+
+          mkdir -p ./backups
+          echo "Dumping PostgreSQL database..."
+          pg_dump --no-owner --no-privileges --clean --if-exists "$DB_URL" | gzip -9 > "./backups/${BACKUP_NAME}"
+
+          # Verify dump is non-empty
+          FILESIZE=$(stat -c%s "./backups/${BACKUP_NAME}" || echo 0)
+          if [ "$FILESIZE" -lt 100 ]; then
+            echo "::error::Backup dump failed or output file is empty ($FILESIZE bytes)"
+            exit 1
+          fi
+          echo "Backup dump created successfully ($FILESIZE bytes unencrypted gzip)."
+
+          echo "Encrypting backup with AES-256-CBC (PBKDF2)..."
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
+            -in "./backups/${BACKUP_NAME}" \
+            -out "./backups/${ENC_BACKUP_NAME}" \
+            -pass pass:"$ENC_KEY"
+
+          # Calculate and store SHA-256 checksum
+          sha256sum "./backups/${ENC_BACKUP_NAME}" > "./backups/${ENC_BACKUP_NAME}.sha256"
+
+          # Save metadata variables for upload step
+          echo "ENC_BACKUP_FILE=./backups/${ENC_BACKUP_NAME}" >> $GITHUB_ENV
+          echo "BACKUP_FILENAME=${ENC_BACKUP_NAME}" >> $GITHUB_ENV
+          echo "DAY_OF_WEEK=${DAY_OF_WEEK}" >> $GITHUB_ENV
+
+          # Remove plain unencrypted dump immediately
+          rm -f "./backups/${BACKUP_NAME}"
+
+      - name: Upload to Offsite Storage (Cloudflare R2 / AWS S3)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION || 'auto' }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+          FORCE_WEEKLY: ${{ github.event.inputs.force_weekly }}
+        run: |
+          ENDPOINT_FLAG=""
+          if [ -n "$S3_ENDPOINT" ]; then
+            ENDPOINT_FLAG="--endpoint-url $S3_ENDPOINT"
+          fi
+
+          echo "Uploading encrypted backup to daily retention folder..."
+          aws s3 cp $ENDPOINT_FLAG "$ENC_BACKUP_FILE" "s3://${S3_BUCKET}/daily/${BACKUP_FILENAME}"
+          aws s3 cp $ENDPOINT_FLAG "${ENC_BACKUP_FILE}.sha256" "s3://${S3_BUCKET}/daily/${BACKUP_FILENAME}.sha256"
+
+          # If today is Sunday (day 7) or force_weekly is true, also upload to weekly retention
+          if [ "$DAY_OF_WEEK" -eq 7 ] || [ "$FORCE_WEEKLY" = "true" ]; then
+            echo "Sunday detected or manual weekly trigger. Uploading to weekly retention folder..."
+            aws s3 cp $ENDPOINT_FLAG "$ENC_BACKUP_FILE" "s3://${S3_BUCKET}/weekly/${BACKUP_FILENAME}"
+            aws s3 cp $ENDPOINT_FLAG "${ENC_BACKUP_FILE}.sha256" "s3://${S3_BUCKET}/weekly/${BACKUP_FILENAME}.sha256"
+          fi
+
+          echo "Upload complete."
+
+      - name: Apply Retention Policy (Keep 7 Daily & 4 Weekly)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.S3_REGION || 'auto' }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET_NAME }}
+        run: |
+          ENDPOINT_FLAG=""
+          if [ -n "$S3_ENDPOINT" ]; then
+            ENDPOINT_FLAG="--endpoint-url $S3_ENDPOINT"
+          fi
+
+          echo "Applying retention policy for daily backups (retaining newest 7)..."
+          # List all daily .enc files sorted by name descending (since timestamp is in the filename)
+          aws s3 ls $ENDPOINT_FLAG "s3://${S3_BUCKET}/daily/" | grep '\.enc$' | sort -r | awk '{print $4}' > /tmp/all_daily.txt
+          
+          TOTAL_DAILY=$(wc -l < /tmp/all_daily.txt)
+          if [ "$TOTAL_DAILY" -gt 7 ]; then
+            tail -n +8 /tmp/all_daily.txt | while read -r OLD_FILE; do
+              echo "Pruning expired daily backup: $OLD_FILE"
+              aws s3 rm $ENDPOINT_FLAG "s3://${S3_BUCKET}/daily/${OLD_FILE}"
+              aws s3 rm $ENDPOINT_FLAG "s3://${S3_BUCKET}/daily/${OLD_FILE}.sha256" || true
+            done
+          fi
+
+          echo "Applying retention policy for weekly backups (retaining newest 4)..."
+          aws s3 ls $ENDPOINT_FLAG "s3://${S3_BUCKET}/weekly/" | grep '\.enc$' | sort -r | awk '{print $4}' > /tmp/all_weekly.txt
+          
+          TOTAL_WEEKLY=$(wc -l < /tmp/all_weekly.txt)
+          if [ "$TOTAL_WEEKLY" -gt 4 ]; then
+            tail -n +5 /tmp/all_weekly.txt | while read -r OLD_FILE; do
+              echo "Pruning expired weekly backup: $OLD_FILE"
+              aws s3 rm $ENDPOINT_FLAG "s3://${S3_BUCKET}/weekly/${OLD_FILE}"
+              aws s3 rm $ENDPOINT_FLAG "s3://${S3_BUCKET}/weekly/${OLD_FILE}.sha256" || true
+            done
+          fi
+
+          echo "Retention policy successfully enforced."

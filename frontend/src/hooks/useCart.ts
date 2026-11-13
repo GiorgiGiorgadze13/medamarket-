@@ -1,6 +1,9 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { CartItem, Product } from '../types'
 import toast from 'react-hot-toast'
+
+const CART_STORAGE_KEY = 'medamarket_pos_cart_v1'
+const DISCOUNT_STORAGE_KEY = 'medamarket_pos_discount_v1'
 
 export function getItemEffectivePrice(product: Product, discountPercent?: number): number {
   const base = Number(product.sellingPrice) || 0
@@ -10,9 +13,70 @@ export function getItemEffectivePrice(product: Product, discountPercent?: number
   return Math.max(0, Math.round(discounted * 100) / 100)
 }
 
+function loadInitialCart(): CartItem[] {
+  try {
+    const raw = localStorage.getItem(CART_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    // Sanitize and validate loaded cart items
+    return parsed.filter((item): item is CartItem => {
+      return (
+        item &&
+        item.product &&
+        typeof item.product.id === 'string' &&
+        typeof item.product.name === 'string' &&
+        typeof item.quantity === 'number' &&
+        item.quantity > 0
+      )
+    })
+  } catch (err) {
+    console.error('Failed to parse saved cart from localStorage:', err)
+    return []
+  }
+}
+
+function loadInitialDiscount(): number {
+  try {
+    const raw = localStorage.getItem(DISCOUNT_STORAGE_KEY)
+    if (!raw) return 0
+    const num = parseFloat(raw)
+    return isNaN(num) || num < 0 ? 0 : num
+  } catch {
+    return 0
+  }
+}
+
 export function useCart() {
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [discount, setDiscount] = useState<number>(0)
+  const [cart, setCart] = useState<CartItem[]>(loadInitialCart)
+  const [discount, setDiscountState] = useState<number>(loadInitialDiscount)
+
+  // Synchronize cart changes to localStorage
+  useEffect(() => {
+    try {
+      if (cart.length === 0) {
+        localStorage.removeItem(CART_STORAGE_KEY)
+      } else {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart))
+      }
+    } catch (err) {
+      console.warn('Failed to persist cart to localStorage:', err)
+    }
+  }, [cart])
+
+  // Synchronize discount changes to localStorage
+  const setDiscount = useCallback((amount: number) => {
+    setDiscountState(amount)
+    try {
+      if (amount <= 0) {
+        localStorage.removeItem(DISCOUNT_STORAGE_KEY)
+      } else {
+        localStorage.setItem(DISCOUNT_STORAGE_KEY, String(amount))
+      }
+    } catch (err) {
+      console.warn('Failed to persist discount to localStorage:', err)
+    }
+  }, [])
 
   const addToCart = useCallback((product: Product, quantity: number = 1): boolean => {
     if (product.stock <= 0) {
@@ -93,9 +157,16 @@ export function useCart() {
     setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId))
   }, [])
 
+  // Explicitly clear cart (only upon confirmed server sale success)
   const clearCart = useCallback(() => {
     setCart([])
-    setDiscount(0)
+    setDiscountState(0)
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY)
+      localStorage.removeItem(DISCOUNT_STORAGE_KEY)
+    } catch {
+      // Ignored
+    }
   }, [])
 
   // Original subtotal before any discounts

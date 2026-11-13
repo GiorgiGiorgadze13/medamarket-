@@ -94,6 +94,7 @@ export default function POSPage() {
   const [mixedCash, setMixedCash] = useState<string>('')
   const [mixedCard, setMixedCard] = useState<string>('')
   const [isSubmittingSale, setIsSubmittingSale] = useState<boolean>(false)
+  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string>('')
 
   // Receipt Modal State
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
@@ -287,6 +288,10 @@ export default function POSPage() {
       toast.error('კალათა ცარიელია')
       return
     }
+    // Generate fresh idempotency key for this checkout attempt
+    const newKey = `pos_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    setCheckoutIdempotencyKey(newKey)
+
     setIsMobileCartOpen(false)
     setPaymentMethod('CASH')
     setCashTendered(total.toString())
@@ -322,7 +327,14 @@ export default function POSPage() {
 
     setIsSubmittingSale(true)
     try {
+      const keyToUse =
+        checkoutIdempotencyKey || `pos_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      if (!checkoutIdempotencyKey) {
+        setCheckoutIdempotencyKey(keyToUse)
+      }
+
       const payload: any = {
+        idempotencyKey: keyToUse,
         items: cart.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,

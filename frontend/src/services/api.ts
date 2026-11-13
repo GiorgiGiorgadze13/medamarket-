@@ -152,8 +152,9 @@ export const api = {
       cashAmount?: number | null
       cardAmount?: number | null
       discountAmount?: number
+      idempotencyKey?: string
     }) => {
-      const res = await apiClient.post<{ sale: Sale }>('/sales', data)
+      const res = await apiClient.post<{ sale: Sale; isDuplicate?: boolean }>('/sales', data)
       return res.data.sale
     },
     getAll: async (params?: { startDate?: string; endDate?: string; page?: number; limit?: number }) => {

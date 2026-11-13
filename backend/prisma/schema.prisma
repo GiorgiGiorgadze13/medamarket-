@@ -49,6 +49,7 @@ model Product {
 
 model Sale {
   id             String   @id @default(uuid())
+  idempotencyKey String?  @unique
   receiptNumber  String   @unique
   cashierId      String
   totalAmount    Float

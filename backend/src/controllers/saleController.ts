@@ -14,7 +14,7 @@ function generateReceiptNumber(): string {
 
 export const createSale = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { items, paymentMethod, cashAmount, cardAmount, discountAmount } = req.body
+    const { items, paymentMethod, cashAmount, cardAmount, discountAmount, idempotencyKey } = req.body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: 'კალათა ცარიელია' })
@@ -26,8 +26,50 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
       return
     }
 
+    // 1. Idempotency Check: If key was provided, verify if sale already exists
+    const validIdempotencyKey = typeof idempotencyKey === 'string' && idempotencyKey.trim().length > 0
+      ? idempotencyKey.trim()
+      : null
+
+    if (validIdempotencyKey) {
+      const existingSale = await prisma.sale.findUnique({
+        where: { idempotencyKey: validIdempotencyKey },
+        include: {
+          items: {
+            include: { product: true },
+          },
+          cashier: {
+            select: { name: true, email: true },
+          },
+        },
+      })
+
+      if (existingSale) {
+        // Return existing sale without deducting stock again or creating duplicate
+        res.status(200).json({ sale: existingSale, isDuplicate: true })
+        return
+      }
+    }
+
     // Atomic transaction for sale creation & stock deduction
     const sale = await prisma.$transaction(async (tx) => {
+      // Re-verify idempotency inside transaction to prevent race conditions from concurrent duplicate requests
+      if (validIdempotencyKey) {
+        const raceCheck = await tx.sale.findUnique({
+          where: { idempotencyKey: validIdempotencyKey },
+          include: {
+            items: {
+              include: { product: true },
+            },
+            cashier: {
+              select: { name: true, email: true },
+            },
+          },
+        })
+        if (raceCheck) {
+          return raceCheck
+        }
+      }
       let originalTotal = 0
       let totalItemDiscounts = 0
 
@@ -74,6 +116,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
       // Create Sale record
       const createdSale = await tx.sale.create({
         data: {
+          idempotencyKey: validIdempotencyKey,
           receiptNumber,
           cashierId: req.user!.id,
           totalAmount: Math.round(originalTotal * 100) / 100,
@@ -136,6 +179,24 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
 
     res.status(201).json({ sale })
   } catch (err: any) {
+    // If a unique constraint violation happens on idempotencyKey concurrently
+    if (err.code === 'P2002' && err.meta?.target?.includes('idempotencyKey') && req.body.idempotencyKey) {
+      try {
+        const existing = await prisma.sale.findUnique({
+          where: { idempotencyKey: String(req.body.idempotencyKey).trim() },
+          include: {
+            items: { include: { product: true } },
+            cashier: { select: { name: true, email: true } },
+          },
+        })
+        if (existing) {
+          res.status(200).json({ sale: existing, isDuplicate: true })
+          return
+        }
+      } catch (subErr) {
+        // Fall through to general error handler
+      }
+    }
     console.error('Sale error:', err)
     res.status(400).json({ error: err.message || 'სერვერის შეცდომა' })
   }
