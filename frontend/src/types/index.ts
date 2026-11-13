@@ -73,6 +73,7 @@ export interface Sale {
 export interface CartItem {
   product: Product
   quantity: number
+  discountPercent?: number
 }
 
 export type MovementType = 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'RETURN'

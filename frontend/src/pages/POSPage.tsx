@@ -22,6 +22,7 @@ import {
   ArrowRight,
   ChevronDown,
   Scale,
+  Percent,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -63,11 +64,15 @@ export default function POSPage() {
     cart,
     addToCart,
     updateQuantity,
+    setItemDiscount,
     removeFromCart,
     clearCart,
     discount,
     setDiscount,
+    originalSubtotal,
     subtotal,
+    itemDiscountsTotal,
+    totalDiscount,
     total,
     totalItems,
   } = useCart()
@@ -138,6 +143,38 @@ export default function POSPage() {
     toast.success(`${weightModalItem.productName}: ${grams}გ (${kg} კგ)`)
     setWeightModalItem(null)
     setGramInput('')
+  }
+
+  // Per-Product Discount Modal State
+  const [discountModalItem, setDiscountModalItem] = useState<{
+    productId: string
+    productName: string
+    unitPrice: number
+    currentDiscountPercent?: number
+  } | null>(null)
+  const [itemDiscountInput, setItemDiscountInput] = useState<string>('10')
+
+  const openDiscountModal = (item: {
+    productId: string
+    productName: string
+    unitPrice: number
+    currentDiscountPercent?: number
+  }) => {
+    setDiscountModalItem(item)
+    setItemDiscountInput(String(item.currentDiscountPercent || 10))
+  }
+
+  const handleApplyItemDiscount = () => {
+    if (!discountModalItem) return
+    const pct = Math.min(100, Math.max(0, parseFloat(itemDiscountInput) || 0))
+    setItemDiscount(discountModalItem.productId, pct)
+    if (pct > 0) {
+      toast.success(`${discountModalItem.productName}: -${pct}% ფასდაკლება დაყენდა!`)
+    } else {
+      toast.success(`${discountModalItem.productName}: ფასდაკლება გაუქმდა`)
+    }
+    setDiscountModalItem(null)
+    setItemDiscountInput('10')
   }
 
   // Search input ref for manual barcode typing or text search
@@ -214,7 +251,7 @@ export default function POSPage() {
   // USB HID barcode scanner listener
   useBarcodeScanner({
     onScan: handleBarcodeScanned,
-    enabled: !isPaymentModalOpen && !isReceiptModalOpen && !weightModalItem,
+    enabled: !isPaymentModalOpen && !isReceiptModalOpen && !weightModalItem && !discountModalItem,
   })
 
   // Keyboard shortcut F4 to open payment
@@ -289,9 +326,10 @@ export default function POSPage() {
         items: cart.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
+          discountPercent: item.discountPercent || 0,
         })),
         paymentMethod,
-        discountAmount: discount,
+        discountAmount: totalDiscount,
       }
 
       if (paymentMethod === 'CASH') {
@@ -400,7 +438,13 @@ export default function POSPage() {
           </div>
         ) : (
           cart.map((item) => {
-            const itemTotal = (Number(item.product.sellingPrice) * item.quantity).toFixed(2)
+            const basePrice = Number(item.product.sellingPrice) || 0
+            const discountPct = Number(item.discountPercent) || 0
+            const effectivePrice =
+              discountPct > 0
+                ? Math.max(0, Math.round(basePrice * (1 - discountPct / 100) * 100) / 100)
+                : basePrice
+            const itemTotal = (effectivePrice * item.quantity).toFixed(2)
             const maxStock = item.product.stock
 
             return (
@@ -409,13 +453,31 @@ export default function POSPage() {
                 className="p-2.5 flex items-center gap-2 sm:gap-3 hover:bg-slate-50 rounded-xl transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-slate-800 truncate leading-snug">
-                    {item.product.name}
-                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-xs font-semibold text-slate-800 truncate leading-snug">
+                      {item.product.name}
+                    </p>
+                    {discountPct > 0 && (
+                      <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded text-[10px] font-black inline-flex items-center gap-0.5 shadow-xs">
+                        <Percent className="w-2.5 h-2.5" /> -{discountPct}%
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <span className="text-xs font-medium text-slate-500">
-                      {Number(item.product.sellingPrice).toFixed(2)} ₾
-                    </span>
+                    {discountPct > 0 ? (
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-[11px] line-through text-slate-400">
+                          {basePrice.toFixed(2)} ₾
+                        </span>
+                        <span className="text-xs font-black text-rose-600">
+                          {effectivePrice.toFixed(2)} ₾
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-500">
+                        {basePrice.toFixed(2)} ₾
+                      </span>
+                    )}
                     {item.quantity < 1 || !Number.isInteger(item.quantity) ? (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">
                         {item.quantity} კგ ({Math.round(item.quantity * 1000)}გ)
@@ -431,7 +493,7 @@ export default function POSPage() {
                         openWeightModal({
                           productId: item.product.id,
                           productName: item.product.name,
-                          unitPrice: Number(item.product.sellingPrice),
+                          unitPrice: effectivePrice,
                           currentQty: item.quantity,
                           stock: maxStock,
                         })
@@ -441,6 +503,26 @@ export default function POSPage() {
                     >
                       <Scale className="w-3 h-3 text-emerald-600" />
                       <span>წონა</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openDiscountModal({
+                          productId: item.product.id,
+                          productName: item.product.name,
+                          unitPrice: basePrice,
+                          currentDiscountPercent: item.discountPercent,
+                        })
+                      }
+                      title="ფასდაკლების მითითება (%)"
+                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                        discountPct > 0
+                          ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+                          : 'text-slate-600 bg-slate-100 hover:bg-rose-50 hover:text-rose-700'
+                      }`}
+                    >
+                      <Percent className="w-3 h-3 text-rose-500" />
+                      <span>{discountPct > 0 ? `-${discountPct}%` : 'ფასდაკლება'}</span>
                     </button>
                   </div>
                 </div>
@@ -505,8 +587,28 @@ export default function POSPage() {
         {/* Subtotal */}
         <div className="flex items-center justify-between text-xs text-slate-600">
           <span>ქვეჯამი:</span>
-          <span className="font-semibold text-slate-800">{subtotal.toFixed(2)} ₾</span>
+          {itemDiscountsTotal > 0 ? (
+            <div className="flex items-center gap-1.5">
+              <span className="line-through text-slate-400 font-normal">
+                {originalSubtotal.toFixed(2)} ₾
+              </span>
+              <span className="font-bold text-slate-900">{subtotal.toFixed(2)} ₾</span>
+            </div>
+          ) : (
+            <span className="font-semibold text-slate-800">{subtotal.toFixed(2)} ₾</span>
+          )}
         </div>
+
+        {/* Product discounts breakdown if any */}
+        {itemDiscountsTotal > 0 && (
+          <div className="flex items-center justify-between text-xs text-rose-600 font-medium">
+            <span className="flex items-center gap-1">
+              <Percent className="w-3 h-3" />
+              <span>პროდუქტის ფასდაკლება:</span>
+            </span>
+            <span className="font-bold">-{itemDiscountsTotal.toFixed(2)} ₾</span>
+          </div>
+        )}
 
         {/* Discount Line */}
         <div className="flex items-center justify-between text-xs">
@@ -518,7 +620,7 @@ export default function POSPage() {
             className="text-emerald-700 hover:text-emerald-800 font-medium flex items-center gap-1 underline underline-offset-2"
           >
             <Tag className="w-3 h-3" />
-            <span>ფასდაკლება {discount > 0 ? `(-${discount} ₾)` : '+'}</span>
+            <span>ჩეკის ფასდაკლება {discount > 0 ? `(-${discount} ₾)` : '+'}</span>
           </button>
           {discount > 0 && (
             <span className="font-semibold text-rose-600">-{discount.toFixed(2)} ₾</span>
@@ -700,7 +802,13 @@ export default function POSPage() {
               {filteredProducts.map((product) => {
                 const isOutOfStock = product.stock <= 0
                 const isLowStock = !isOutOfStock && product.stock <= product.minStockLevel
-                const cartQty = cart.find((i) => i.product.id === product.id)?.quantity || 0
+                const cartItem = cart.find((i) => i.product.id === product.id)
+                const cartQty = cartItem?.quantity || 0
+                const cartItemDiscount = cartItem?.discountPercent
+                const basePrice = Number(product.sellingPrice) || 0
+                const effectivePrice = cartItemDiscount
+                  ? Math.max(0, Math.round(basePrice * (1 - cartItemDiscount / 100) * 100) / 100)
+                  : basePrice
 
                 return (
                   <button
@@ -716,12 +824,13 @@ export default function POSPage() {
                         : 'border-slate-200 hover:border-emerald-500 hover:shadow-md active:scale-[0.98]'
                     }`}
                   >
-                    {/* Top: Category & Cart Badge */}
+                    {/* Top: Category & Cart Badge / Actions */}
                     <div className="flex items-center justify-between gap-1 mb-1.5">
                       <span className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-wider">
                         {product.category?.name || 'სხვა'}
                       </span>
                       <div className="flex items-center gap-1">
+                        {/* Weight action */}
                         <span
                           role="button"
                           onClick={(e) => {
@@ -732,7 +841,7 @@ export default function POSPage() {
                             openWeightModal({
                               productId: product.id,
                               productName: product.name,
-                              unitPrice: Number(product.sellingPrice),
+                              unitPrice: effectivePrice,
                               currentQty: cartQty > 0 ? cartQty : 0.5,
                               stock: product.stock,
                             })
@@ -742,6 +851,39 @@ export default function POSPage() {
                         >
                           <Scale className="w-3.5 h-3.5" />
                         </span>
+
+                        {/* Discount action */}
+                        <span
+                          role="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (cartQty === 0) {
+                              addToCart(product, 1)
+                            }
+                            openDiscountModal({
+                              productId: product.id,
+                              productName: product.name,
+                              unitPrice: basePrice,
+                              currentDiscountPercent: cartItemDiscount,
+                            })
+                          }}
+                          title="ფასდაკლების მითითება (%)"
+                          className={`p-1 rounded transition-colors cursor-pointer ${
+                            cartItemDiscount
+                              ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+                              : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                          }`}
+                        >
+                          <Percent className="w-3.5 h-3.5" />
+                        </span>
+
+                        {/* Discount badge if active */}
+                        {cartItemDiscount && (
+                          <span className="px-1.5 py-0.5 bg-rose-500 text-white rounded text-[10px] font-black shadow-xs">
+                            -{cartItemDiscount}%
+                          </span>
+                        )}
+
                         {cartQty > 0 && (
                           <span className="px-1.5 py-0.5 bg-emerald-600 text-white rounded text-[11px] font-bold">
                             ×{cartQty < 1 ? `${cartQty}კგ` : cartQty}
@@ -763,8 +905,22 @@ export default function POSPage() {
                     {/* Bottom: Price & Stock */}
                     <div className="mt-auto pt-2 border-t border-slate-100 flex items-baseline justify-between">
                       <div className="text-sm sm:text-base font-extrabold text-slate-900">
-                        {Number(product.sellingPrice).toFixed(2)}{' '}
-                        <span className="text-xs font-bold text-emerald-600">₾</span>
+                        {cartItemDiscount ? (
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-[11px] line-through text-slate-400 font-normal">
+                              {basePrice.toFixed(2)}
+                            </span>
+                            <span className="text-rose-600 font-black">
+                              {effectivePrice.toFixed(2)}
+                            </span>
+                            <span className="text-xs font-bold text-rose-600">₾</span>
+                          </div>
+                        ) : (
+                          <>
+                            {basePrice.toFixed(2)}{' '}
+                            <span className="text-xs font-bold text-emerald-600">₾</span>
+                          </>
+                        )}
                       </div>
                       <div>
                         {isOutOfStock ? (
@@ -773,11 +929,13 @@ export default function POSPage() {
                           </span>
                         ) : isLowStock ? (
                           <span className="text-[9px] sm:text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                            {product.stock} ც
+                            {Number.isInteger(product.stock) ? product.stock : product.stock.toFixed(2)}{' '}
+                            {product.stock <= 5 && !Number.isInteger(product.stock) ? 'კგ' : 'ც'}
                           </span>
                         ) : (
                           <span className="text-[9px] sm:text-[10px] text-slate-400">
-                            {product.stock} ც
+                            {Number.isInteger(product.stock) ? product.stock : product.stock.toFixed(2)}{' '}
+                            {!Number.isInteger(product.stock) ? 'კგ' : 'ც'}
                           </span>
                         )}
                       </div>
@@ -1339,6 +1497,134 @@ export default function POSPage() {
                   type="button"
                   onClick={handleApplyWeight}
                   className="py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  <span>დადასტურება</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRODUCT DISCOUNT MODAL */}
+      {discountModalItem && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Percent className="w-5 h-5 text-rose-400" />
+                <div>
+                  <h3 className="font-bold text-sm">ფასდაკლება პროდუქტზე</h3>
+                  <p className="text-[11px] text-slate-300 truncate max-w-[220px]">
+                    {discountModalItem.productName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setDiscountModalItem(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Original Price */}
+              <div className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <span className="text-slate-500">საწყისი ფასი:</span>
+                <span className="font-extrabold text-slate-900 text-sm">
+                  {discountModalItem.unitPrice.toFixed(2)} ₾
+                </span>
+              </div>
+
+              {/* Discount Percentage Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  ფასდაკლების პროცენტი (%):
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    autoFocus
+                    value={itemDiscountInput}
+                    onChange={(e) => setItemDiscountInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleApplyItemDiscount()
+                      }
+                    }}
+                    placeholder="10"
+                    className="w-full text-center text-2xl font-black py-2.5 px-3 bg-rose-50/50 border-2 border-rose-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-900"
+                  />
+                  <span className="absolute right-4 top-3.5 text-base font-extrabold text-rose-600">
+                    %
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons (5%, 10%, 15%, 20%, 25%, 30%, 50%, 0%) */}
+              <div>
+                <span className="text-[11px] font-semibold text-slate-500 block mb-2">
+                  სწრაფი არჩევა:
+                </span>
+                <div className="grid grid-cols-4 gap-1.5 text-xs font-bold">
+                  {[5, 10, 15, 20, 25, 30, 50, 0].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setItemDiscountInput(String(pct))}
+                      className={`py-2 rounded-lg border text-center transition-all ${
+                        Number(itemDiscountInput) === pct
+                          ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      {pct === 0 ? 'გაუქმება' : `${pct}%`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Live Preview Summary */}
+              {(() => {
+                const pct = Math.min(100, Math.max(0, parseFloat(itemDiscountInput) || 0))
+                const saved = (discountModalItem.unitPrice * pct) / 100
+                const newPrice = Math.max(0, discountModalItem.unitPrice - saved)
+                return (
+                  <div className="bg-rose-50 rounded-xl p-3 border border-rose-200 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-rose-800">ფასდაკლების თანხა:</span>
+                      <strong className="text-rose-950 font-black">-{saved.toFixed(2)} ₾</strong>
+                    </div>
+                    <div className="flex justify-between items-baseline pt-1 border-t border-rose-200/60">
+                      <span className="text-rose-800 font-bold">ახალი ფასი:</span>
+                      <span className="text-lg font-black text-rose-700">
+                        {newPrice.toFixed(2)} ₾
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Action Buttons */}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDiscountModalItem(null)}
+                  className="py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                >
+                  დახურვა
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyItemDiscount}
+                  className="py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle className="w-4 h-4" />
                   <span>დადასტურება</span>

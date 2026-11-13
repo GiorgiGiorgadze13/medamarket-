@@ -28,7 +28,8 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
 
     // Atomic transaction for sale creation & stock deduction
     const sale = await prisma.$transaction(async (tx) => {
-      let totalAmount = 0
+      let originalTotal = 0
+      let totalItemDiscounts = 0
 
       // Validate products and check stock levels
       for (const item of items) {
@@ -39,11 +40,17 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
         if (product.stock < item.quantity) {
           throw new Error(`${product.name}: არასაკმარისი მარაგი (მარაგშია: ${product.stock}, მოთხოვნილია: ${item.quantity})`)
         }
-        totalAmount += Number(product.sellingPrice) * item.quantity
+        const basePrice = Number(product.sellingPrice)
+        const discountPct = Math.min(100, Math.max(0, Number(item.discountPercent) || 0))
+        const itemOriginal = basePrice * item.quantity
+        const itemDiscount = itemOriginal * (discountPct / 100)
+        originalTotal += itemOriginal
+        totalItemDiscounts += itemDiscount
       }
 
-      const discount = Number(discountAmount) || 0
-      const finalAmount = Math.max(0, totalAmount - discount)
+      const cartDiscount = Number(discountAmount) || 0
+      const totalDiscount = Math.round((totalItemDiscounts + cartDiscount) * 100) / 100
+      const finalAmount = Math.max(0, Math.round((originalTotal - totalDiscount) * 100) / 100)
 
       let changeAmount = 0
       if (paymentMethod === 'CASH') {
@@ -51,13 +58,13 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
         if (received < finalAmount) {
           throw new Error('მიღებული თანხა ნაკლებია გადასახდელზე')
         }
-        changeAmount = received - finalAmount
+        changeAmount = Math.round((received - finalAmount) * 100) / 100
       } else if (paymentMethod === 'MIXED') {
         const totalPaid = (Number(cashAmount) || 0) + (Number(cardAmount) || 0)
         if (totalPaid < finalAmount) {
           throw new Error('ჯამური გადახდილი თანხა ნაკლებია გადასახდელზე')
         }
-        changeAmount = totalPaid - finalAmount
+        changeAmount = Math.round((totalPaid - finalAmount) * 100) / 100
       } else if (paymentMethod === 'CARD') {
         changeAmount = 0
       }
@@ -69,8 +76,8 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
         data: {
           receiptNumber,
           cashierId: req.user!.id,
-          totalAmount,
-          discountAmount: discount,
+          totalAmount: Math.round(originalTotal * 100) / 100,
+          discountAmount: totalDiscount,
           finalAmount,
           paymentMethod: paymentMethod as PaymentMethod,
           cashAmount: cashAmount !== undefined && cashAmount !== null ? Number(cashAmount) : null,
@@ -78,14 +85,18 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           changeAmount,
           items: {
             create: await Promise.all(
-              items.map(async (item: { productId: string; quantity: number }) => {
+              items.map(async (item: { productId: string; quantity: number; discountPercent?: number }) => {
                 const product = await tx.product.findUnique({ where: { id: item.productId } })
+                const basePrice = Number(product!.sellingPrice)
+                const discountPct = Math.min(100, Math.max(0, Number(item.discountPercent) || 0))
+                const effectiveUnitPrice = Math.max(0, Math.round(basePrice * (1 - discountPct / 100) * 100) / 100)
+                const totalPrice = Math.round(effectiveUnitPrice * item.quantity * 100) / 100
                 return {
                   id: uuidv4(),
                   productId: item.productId,
                   quantity: item.quantity,
-                  unitPrice: Number(product!.sellingPrice),
-                  totalPrice: Number(product!.sellingPrice) * item.quantity,
+                  unitPrice: effectiveUnitPrice,
+                  totalPrice: totalPrice,
                 }
               })
             ),

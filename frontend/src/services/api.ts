@@ -147,7 +147,7 @@ export const api = {
   // Sales
   sales: {
     create: async (data: {
-      items: { productId: string; quantity: number }[]
+      items: { productId: string; quantity: number; discountPercent?: number }[]
       paymentMethod: 'CASH' | 'CARD' | 'MIXED'
       cashAmount?: number | null
       cardAmount?: number | null
