@@ -15,14 +15,17 @@
  *   6. Process execution: uses spawnSync with explicit argument arrays (no shell interpolation).
  *   7. Exit code verification: psql uses -v ON_ERROR_STOP=1 and exit status is strictly checked.
  *   8. Byte-compatible with existing AES-256-CBC PBKDF2 (100,000 iter) and gzip backups.
+ *   9. Safe Verification Mode (--verify-only): inspects, decrypts, and decompresses the backup
+ *      without connecting to PostgreSQL or modifying any database.
  *
- * Safe Environment-Based Usage (Recommended):
- *   # Windows CMD:
+ * Usage Modes:
+ *   # Mode 1: Dry-Run Verification (Safe, Zero Database Connections)
+ *   set BACKUP_ENCRYPTION_KEY=YOUR_BACKUP_ENCRYPTION_KEY
+ *   node scripts/restore-database.js --backup ./backups/medamarket_20261113.sql.gz.enc --verify-only
+ *
+ *   # Mode 2: Staging Database Restore (Executes restore against isolated staging DB)
  *   set STAGING_DATABASE_URL=postgresql://user:pass@ep-staging.us-east-2.aws.neon.tech/neondb?sslmode=require
  *   set BACKUP_ENCRYPTION_KEY=YOUR_BACKUP_ENCRYPTION_KEY
- *   node scripts/restore-database.js --from-gdrive latest --confirm-staging
- *
- *   # Or with local backup file:
  *   node scripts/restore-database.js --backup ./backups/medamarket_20261113.sql.gz.enc --confirm-staging
  */
 
@@ -117,6 +120,57 @@ function getAuthoritativeProductionDbUrl() {
 }
 
 /**
+ * Inspects a decrypted and decompressed SQL dump to identify tables and data populations.
+ */
+function inspectSqlDump(sqlString) {
+  const lines = sqlString.split(/\r?\n/);
+  const createTables = [];
+  const copyTables = [];
+  const insertTables = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Match: CREATE TABLE [IF NOT EXISTS] ["table"|table]
+    const createMatch = trimmed.match(/^CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(?:public\.)?["']?([a-zA-Z0-9_]+)["']?/i);
+    if (createMatch) {
+      const tbl = createMatch[1];
+      if (!createTables.includes(tbl)) {
+        createTables.push(tbl);
+      }
+    }
+
+    // Match: COPY ["table"|table]
+    const copyMatch = trimmed.match(/^COPY\s+(?:public\.)?["']?([a-zA-Z0-9_]+)["']?\s+/i);
+    if (copyMatch) {
+      const tbl = copyMatch[1];
+      if (!copyTables.includes(tbl)) {
+        copyTables.push(tbl);
+      }
+    }
+
+    // Match: INSERT INTO ["table"|table]
+    const insertMatch = trimmed.match(/^INSERT\s+INTO\s+(?:public\.)?["']?([a-zA-Z0-9_]+)["']?/i);
+    if (insertMatch) {
+      const tbl = insertMatch[1];
+      if (!insertTables.includes(tbl)) {
+        insertTables.push(tbl);
+      }
+    }
+  }
+
+  const byteLength = Buffer.byteLength(sqlString, 'utf8');
+  return {
+    totalBytes: byteLength,
+    totalLines: lines.length,
+    createTables,
+    copyTables,
+    insertTables,
+    isNonEmpty: createTables.length > 0 && byteLength > 100
+  };
+}
+
+/**
  * Parses command-line arguments.
  */
 function parseArgs() {
@@ -124,6 +178,7 @@ function parseArgs() {
   const options = {
     confirmStaging: false,
     keepSql: false,
+    verifyOnly: false,
     fromGdrive: null,
     backup: null,
     targetUrl: null,
@@ -145,6 +200,7 @@ function parseArgs() {
     else if (args[i] === '--target-url' || args[i] === '-t') options.targetUrl = args[++i];
     else if (args[i] === '--key' || args[i] === '-k') options.key = args[++i];
     else if (args[i] === '--confirm-staging') options.confirmStaging = true;
+    else if (args[i] === '--verify-only' || args[i] === '-v') options.verifyOnly = true;
     else if (args[i] === '--keep-sql') options.keepSql = true;
     else if (args[i] === '--help' || args[i] === '-h') options.help = true;
   }
@@ -320,33 +376,144 @@ async function main() {
     console.warn(`Prefer setting STAGING_DATABASE_URL and BACKUP_ENCRYPTION_KEY in environment variables.`);
   }
 
-  if (args.help || (!args.backup && !args.fromGdrive) || !targetUrl) {
+  // Help output
+  if (args.help || (!args.backup && !args.fromGdrive) || (!args.verifyOnly && !targetUrl)) {
     console.log(`
 MedaMarket Safe Disaster Recovery Restoration Tool
 ==================================================
 Usage:
   node scripts/restore-database.js [options]
 
-Recommended Usage (via Environment Variables):
+Mode 1: Safe Verification & Inspection (--verify-only)
+  # Decrypts, decompresses, and inspects SQL dump metrics without connecting to PostgreSQL.
+  # Zero database connections. Staging and production data remain untouched.
+  set BACKUP_ENCRYPTION_KEY=your_secret_passphrase
+  node scripts/restore-database.js --backup ./backups/medamarket_20261113.sql.gz.enc --verify-only
+
+Mode 2: Staging Database Restore (--confirm-staging)
+  # Restores verified backup into an isolated staging database.
   set STAGING_DATABASE_URL=postgresql://user:pass@ep-staging.us-east-2.aws.neon.tech/neondb?sslmode=require
   set BACKUP_ENCRYPTION_KEY=your_secret_passphrase
-  node scripts/restore-database.js --from-gdrive latest --confirm-staging
+  node scripts/restore-database.js --backup ./backups/medamarket_20261113.sql.gz.enc --confirm-staging
 
-Required Target:
+Options:
+  --verify-only, -v       Safe inspection mode: verify, decrypt, decompress, and inspect SQL (no DB connection)
+  --confirm-staging       Required safety flag for restoration: confirms target is NOT production
   --target-url, -t        Target PostgreSQL Connection URL (or set STAGING_DATABASE_URL env)
-  --confirm-staging       Required safety flag confirming the target is NOT production
-
-Backup Source (Choose one):
-  --from-gdrive, -g       Download directly from Google Drive ('latest' or specific filename)
   --backup, -b            Path to local encrypted backup file (.sql.gz.enc) with matching .sha256
-
-Optional:
+  --from-gdrive, -g       Download directly from Google Drive ('latest' or specific filename)
   --key, -k               Encryption passphrase (or set BACKUP_ENCRYPTION_KEY env)
   --keep-sql              Keep decrypted .sql file after completion
   --help, -h              Show this help message
     `);
     process.exit(args.help ? 0 : 1);
   }
+
+  // Resolve backup file path
+  let backupPath = args.backup ? path.resolve(args.backup) : null;
+
+  if (args.fromGdrive) {
+    try {
+      backupPath = downloadFromGoogleDrive(args.fromGdrive);
+    } catch (err) {
+      console.error(`\n[ERROR] Google Drive download failed:`, err.message);
+      process.exit(1);
+    }
+  }
+
+  if (!backupPath || !fs.existsSync(backupPath)) {
+    console.error(`[CRITICAL] Backup file not found at: ${backupPath}`);
+    process.exit(1);
+  }
+
+  // Mandatory Pre-Decryption Checksum Verification (Required in ALL modes)
+  try {
+    verifySha256Checksum(backupPath);
+  } catch (err) {
+    console.error(`\n[INTEGRITY ERROR] ${err.message}\n`);
+    process.exit(1);
+  }
+
+  // =========================================================================
+  // BRANCH A: --verify-only MODE (No DB connections, safe inspection)
+  // =========================================================================
+  if (args.verifyOnly) {
+    console.log(`================================================================`);
+    console.log(`MedaMarket Backup Verification & Inspection Mode (--verify-only)`);
+    console.log(`================================================================`);
+    console.log(`Backup Source:   ${backupPath}`);
+    console.log(`Database Action: NONE (Zero connections will be made to PostgreSQL)`);
+    console.log(`----------------------------------------------------------------`);
+
+    let currentBuffer = fs.readFileSync(backupPath);
+    let fileName = path.basename(backupPath);
+
+    // 1. Decrypt if file ends with .enc
+    if (fileName.endsWith('.enc')) {
+      if (!encryptionKey) {
+        console.error(`[ERROR] Backup file is encrypted (.enc) but no key was provided.`);
+        console.error(`Set the BACKUP_ENCRYPTION_KEY environment variable or pass --key.`);
+        process.exit(1);
+      }
+      console.log(`Step 1: Decrypting AES-256 backup using native PBKDF2...`);
+      currentBuffer = decryptOpenSslAes256(currentBuffer, encryptionKey);
+      fileName = fileName.replace(/\.enc$/, '');
+      console.log(`  Decrypted successfully (${(currentBuffer.length / 1024).toFixed(2)} KB).`);
+    }
+
+    // 2. Decompress if file is .gz
+    if (fileName.endsWith('.gz')) {
+      console.log(`Step 2: Decompressing gzip archive...`);
+      currentBuffer = zlib.gunzipSync(currentBuffer);
+      fileName = fileName.replace(/\.gz$/, '');
+      console.log(`  Decompressed successfully (${(currentBuffer.length / 1024).toFixed(2)} KB raw SQL).`);
+    }
+
+    // 3. Save resulting SQL file locally
+    const outputDir = path.dirname(backupPath);
+    const baseName = path.basename(backupPath).replace(/\.sql\.gz\.enc$/, '').replace(/\.enc$/, '');
+    const verifiedSqlPath = path.join(outputDir, `verified_${baseName}_dump.sql`);
+    fs.writeFileSync(verifiedSqlPath, currentBuffer);
+
+    // 4. Inspect SQL Dump Metrics
+    const rawSqlString = currentBuffer.toString('utf8');
+    const inspection = inspectSqlDump(rawSqlString);
+
+    console.log(`\n================================================================`);
+    console.log(` VERIFICATION & INSPECTION RESULTS`);
+    console.log(`================================================================`);
+    console.log(`Integrity Checksum:   PASSED (SHA-256 verified)`);
+    console.log(`Decryption (AES-256): PASSED (PBKDF2 100,000 iterations)`);
+    console.log(`Decompression (gzip): PASSED`);
+    console.log(`Verified SQL Output:  ${verifiedSqlPath}`);
+    console.log(`Raw SQL Size:         ${inspection.totalBytes} bytes (${(inspection.totalBytes / 1024).toFixed(2)} KB)`);
+    console.log(`Total SQL Statements: ${inspection.totalLines} lines`);
+    console.log(`Dump Status:          ${inspection.isNonEmpty ? 'NON-EMPTY & VALID' : 'WARNING: EMPTY DUMP'}`);
+    console.log(`----------------------------------------------------------------`);
+    console.log(`Detected Database Tables (${inspection.createTables.length}):`);
+    if (inspection.createTables.length > 0) {
+      inspection.createTables.forEach((t) => console.log(`  - CREATE TABLE: ${t}`));
+    } else {
+      console.log(`  (None found)`);
+    }
+    console.log(`----------------------------------------------------------------`);
+    console.log(`Detected Data Populations (COPY / INSERT):`);
+    const allDataTables = Array.from(new Set([...inspection.copyTables, ...inspection.insertTables]));
+    if (allDataTables.length > 0) {
+      allDataTables.forEach((t) => console.log(`  - Table Data:   ${t}`));
+    } else {
+      console.log(`  (None found)`);
+    }
+    console.log(`================================================================`);
+    console.log(`SAFETY CONFIRMATION: Zero database connections were made.`);
+    console.log(`Production and staging databases were NOT contacted or modified.`);
+    console.log(`================================================================\n`);
+    process.exit(0);
+  }
+
+  // =========================================================================
+  // BRANCH B: RESTORATION MODE (Target DB + Staging Confirmation Required)
+  // =========================================================================
 
   // Safety Rule 1: Explicit confirmation required
   if (!args.confirmStaging) {
@@ -406,31 +573,6 @@ Optional:
     pgConfig = parsePostgresUrl(targetUrl);
   } catch (err) {
     console.error(`\n[CONFIGURATION ERROR] ${err.message}\n`);
-    process.exit(1);
-  }
-
-  let backupPath = args.backup ? path.resolve(args.backup) : null;
-
-  // Download from Google Drive if requested
-  if (args.fromGdrive) {
-    try {
-      backupPath = downloadFromGoogleDrive(args.fromGdrive);
-    } catch (err) {
-      console.error(`\n[ERROR] Google Drive download failed:`, err.message);
-      process.exit(1);
-    }
-  }
-
-  if (!backupPath || !fs.existsSync(backupPath)) {
-    console.error(`[CRITICAL] Backup file not found at: ${backupPath}`);
-    process.exit(1);
-  }
-
-  // Safety Rule 3: Enforce SHA-256 verification before decryption
-  try {
-    verifySha256Checksum(backupPath);
-  } catch (err) {
-    console.error(`\n[INTEGRITY ERROR] ${err.message}\n`);
     process.exit(1);
   }
 
@@ -517,6 +659,7 @@ module.exports = {
   parsePostgresUrl,
   parseHostAndDb,
   maskUrl,
+  inspectSqlDump,
   decryptOpenSslAes256,
   verifySha256Checksum,
   executePsqlRestore
