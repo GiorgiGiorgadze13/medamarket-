@@ -4,26 +4,24 @@
  * Supported OS: Windows, macOS, Linux (Cross-platform)
  * Zero external CLI dependencies required for decryption and decompression.
  *
- * Features:
- *   - Direct download from Google Drive via rclone (or manual file input)
- *   - SHA-256 integrity verification
- *   - Native Node.js AES-256-CBC PBKDF2 decryption (no OpenSSL binary needed)
- *   - Native gzip decompression
- *   - Automatic target URL masking in logs
- *   - Mandatory staging database confirmation guard
+ * Safety Rules:
+ *   1. NEVER restore directly into the production database.
+ *   2. Target database credentials are automatically masked from all logs.
+ *   3. File integrity and checksum verification before execution.
+ *   4. Automatically detects and blocks the production database from backend/.env.
  *
  * Usage:
  *   # Option 1: Direct from Google Drive (downloads latest backup)
  *   node scripts/restore-database.js \
  *     --from-gdrive latest \
- *     --target-url "postgresql://user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
+ *     --target-url "postgresql://staging_user:pass@ep-staging.eu-central-1.aws.neon.tech/neondb?sslmode=require" \
  *     --key "YOUR_BACKUP_ENCRYPTION_KEY" \
  *     --confirm-staging
  *
  *   # Option 2: Using a locally downloaded backup file
  *   node scripts/restore-database.js \
  *     --backup ./medamarket_20261113.sql.gz.enc \
- *     --target-url "postgresql://user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
+ *     --target-url "postgresql://staging_user:pass@ep-staging.eu-central-1.aws.neon.tech/neondb?sslmode=require" \
  *     --key "YOUR_BACKUP_ENCRYPTION_KEY" \
  *     --confirm-staging
  */
@@ -37,6 +35,34 @@ const { execSync } = require('child_process');
 function maskUrl(rawUrl) {
   if (!rawUrl) return '';
   return rawUrl.replace(/(postgres(?:ql)?:\/\/)([^:]+):([^@]+)@/i, '$1$2:***@');
+}
+
+function parseHostAndDb(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    return {
+      host: parsed.hostname.toLowerCase(),
+      pathname: parsed.pathname.toLowerCase()
+    };
+  } catch {
+    return { host: '', pathname: '' };
+  }
+}
+
+function getProductionDbUrl() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  // Automatically read backend/.env to identify production database
+  const envPath = path.resolve(__dirname, '../backend/.env');
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('DATABASE_URL=')) {
+        return trimmed.replace(/^DATABASE_URL=/, '').replace(/^["']|["']$/g, '').trim();
+      }
+    }
+  }
+  return null;
 }
 
 function parseArgs() {
@@ -175,14 +201,14 @@ Examples:
   # 1. Download and restore latest backup from Google Drive
   node scripts/restore-database.js \\
     --from-gdrive latest \\
-    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/staging_db?sslmode=require" \\
+    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/neondb?sslmode=require" \\
     --key "your_secret_passphrase" \\
     --confirm-staging
 
   # 2. Restore from a locally downloaded file
   node scripts/restore-database.js \\
     --backup ./backups/medamarket_20261113.sql.gz.enc \\
-    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/staging_db?sslmode=require" \\
+    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/neondb?sslmode=require" \\
     --key "your_secret_passphrase" \\
     --confirm-staging
     `);
@@ -199,12 +225,25 @@ Examples:
     process.exit(1);
   }
 
-  // Double safety guard: match against loaded environment variable
-  if (process.env.DATABASE_URL && targetUrl.trim() === process.env.DATABASE_URL.trim()) {
-    console.error(`\n[CRITICAL SAFETY BLOCK] Target URL matches production DATABASE_URL!`);
-    console.error(`Direct restoration into the active production database is strictly forbidden.`);
-    console.error(`Please provide a staging, branch, or test database URL.`);
-    process.exit(1);
+  // Double safety guard: match against production DATABASE_URL
+  const prodUrl = getProductionDbUrl();
+  if (prodUrl) {
+    const prodParsed = parseHostAndDb(prodUrl);
+    const targetParsed = parseHostAndDb(targetUrl);
+
+    if (
+      targetUrl.trim() === prodUrl.trim() ||
+      (prodParsed.host && prodParsed.host === targetParsed.host && prodParsed.pathname === targetParsed.pathname)
+    ) {
+      console.error(`\n================================================================`);
+      console.error(`[CRITICAL SAFETY BLOCK] Target URL matches production database!`);
+      console.error(`Endpoint Host: ${targetParsed.host}`);
+      console.error(`Database Name: ${targetParsed.pathname}`);
+      console.error(`Direct restoration into the active production database is strictly forbidden.`);
+      console.error(`Please provide a separate staging branch or test database URL.`);
+      console.error(`================================================================\n`);
+      process.exit(1);
+    }
   }
 
   let backupPath = args.backup ? path.resolve(args.backup) : null;
@@ -280,11 +319,11 @@ Examples:
       console.log(`The backup has been fully decrypted and decompressed to:`);
       console.log(`--> ${sqlFilePath}`);
       console.log(`\nYou can complete the restore into your staging database using any of:`);
-      console.log(`  1. psql CLI:`);
+      console.log(`  1. Neon Console SQL Editor (Paste & Run the SQL from file)`);
+      console.log(`  2. Prisma CLI:`);
+      console.log(`     npx --prefix backend prisma db execute --file "${sqlFilePath}" --url "${maskUrl(targetUrl)}"`);
+      console.log(`  3. psql CLI (if PostgreSQL installed):`);
       console.log(`     psql "${maskUrl(targetUrl)}" -f "${sqlFilePath}"`);
-      console.log(`  2. Docker:`);
-      console.log(`     docker run --rm -v "${path.dirname(sqlFilePath)}":/data postgres:17 psql "${maskUrl(targetUrl)}" -f /data/${path.basename(sqlFilePath)}`);
-      console.log(`  3. Neon Console SQL Editor / DBeaver / pgAdmin.`);
       
       args.keepSql = true;
     }
