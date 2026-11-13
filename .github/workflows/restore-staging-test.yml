@@ -35,7 +35,7 @@ jobs:
           psql --version
           rclone version
 
-      - name: Verify Secrets & Enforce Production Isolation Safety Guards
+      - name: Verify Secrets, Enforce Host Allowlist & Strict Production Isolation
         env:
           PROD_DB_URL: ${{ secrets.BACKUP_DATABASE_URL || secrets.DATABASE_URL }}
           STAGING_DB_URL: ${{ secrets.STAGING_DATABASE_URL }}
@@ -66,29 +66,85 @@ jobs:
             exit 1
           fi
 
-          # Safety Guard 1: Verify STAGING_DB_URL is a valid PostgreSQL connection URI
-          if [[ ! "$STAGING_DB_URL" =~ ^postgres(ql)?:// ]]; then
-            echo "::error::STAGING_DATABASE_URL must be a valid postgresql:// URI."
-            exit 1
-          fi
+          # Execute strict safety verification and parse connection parameters into PG env vars
+          node -e '
+            const { URL } = require("url");
 
-          # Safety Guard 2: Direct string equality check against production database
-          if [ -n "$PROD_DB_URL" ] && [ "$STAGING_DB_URL" = "$PROD_DB_URL" ]; then
-            echo "::error::CRITICAL SAFETY BLOCK: STAGING_DATABASE_URL matches production DATABASE_URL! Restoration into production is strictly blocked."
-            exit 1
-          fi
+            const stagingUrl = process.env.STAGING_DB_URL;
+            const prodUrl = process.env.PROD_DB_URL;
 
-          # Safety Guard 3: Hostname extraction and comparison
-          PROD_HOST=$(echo "$PROD_DB_URL" | sed -E -n 's/.*@([^:\/?#]+).*/\1/p' | tr '[:upper:]' '[:lower:]' || echo "")
-          STAGING_HOST=$(echo "$STAGING_DB_URL" | sed -E -n 's/.*@([^:\/?#]+).*/\1/p' | tr '[:upper:]' '[:lower:]' || echo "")
+            // 1. Validate URL protocol
+            if (!stagingUrl.startsWith("postgres://") && !stagingUrl.startsWith("postgresql://")) {
+              console.error("::error::STAGING_DATABASE_URL must be a valid postgresql:// URI.");
+              process.exit(1);
+            }
 
-          if [ -n "$PROD_HOST" ] && [ -n "$STAGING_HOST" ] && [ "$PROD_HOST" = "$STAGING_HOST" ]; then
-            echo "::error::CRITICAL SAFETY BLOCK: STAGING_DATABASE_URL host ($STAGING_HOST) matches production host ($PROD_HOST)!"
-            echo "Restoration into production endpoint is strictly forbidden. Provide an isolated staging branch URL."
-            exit 1
-          fi
+            let staging;
+            try {
+              staging = new URL(stagingUrl);
+            } catch (err) {
+              console.error("::error::Failed to parse STAGING_DATABASE_URL:", err.message);
+              process.exit(1);
+            }
 
-          echo "Safety verification passed: Staging target is confirmed isolated from production."
+            const stagingHost = staging.hostname.toLowerCase();
+            const stagingPort = staging.port || "5432";
+            const stagingDb = staging.pathname.replace(/^\//, "").toLowerCase();
+            const stagingUser = decodeURIComponent(staging.username || "");
+            const stagingPass = decodeURIComponent(staging.password || "");
+            const stagingSsl = staging.searchParams.get("sslmode") || "require";
+
+            // 2. Exact Staging Host Allowlist
+            const ALLOWED_STAGING_HOSTS = [
+              "ep-dry-queen-bej17wkv.c-9.us-east-2.aws.neon.tech",
+              "ep-dry-queen-bej17wkv-pooler.c-9.us-east-2.aws.neon.tech"
+            ];
+
+            if (!ALLOWED_STAGING_HOSTS.includes(stagingHost)) {
+              console.error("::error::CRITICAL SAFETY BLOCK: STAGING_DATABASE_URL host (" + stagingHost + ") does not match the exact allowed Neon staging-test endpoint!");
+              console.error("Expected endpoint: ep-dry-queen-bej17wkv.c-9.us-east-2.aws.neon.tech");
+              process.exit(1);
+            }
+
+            // 3. Exact Database Name Check
+            if (stagingDb !== "neondb") {
+              console.error("::error::CRITICAL SAFETY BLOCK: Database name must be exactly '\''neondb'\'' (received: '\''" + stagingDb + "'\'').");
+              process.exit(1);
+            }
+
+            // 4. Production Database Comparison Checks
+            if (prodUrl) {
+              if (stagingUrl.trim() === prodUrl.trim()) {
+                console.error("::error::CRITICAL SAFETY BLOCK: STAGING_DATABASE_URL exactly matches production DATABASE_URL! Restoration into production is strictly blocked.");
+                process.exit(1);
+              }
+              try {
+                const prod = new URL(prodUrl);
+                if (stagingHost === prod.hostname.toLowerCase()) {
+                  console.error("::error::CRITICAL SAFETY BLOCK: STAGING_DATABASE_URL host matches production host (" + prod.hostname + ")! Aborted.");
+                  process.exit(1);
+                }
+              } catch (e) {
+                // Ignore parse errors on prodUrl
+              }
+            }
+
+            // 5. Export individual PG connection variables to $GITHUB_ENV (prevents passing URL on command line)
+            const fs = require("fs");
+            const envFile = process.env.GITHUB_ENV;
+            if (envFile) {
+              fs.appendFileSync(envFile, `PGHOST=${stagingHost}\n`);
+              fs.appendFileSync(envFile, `PGPORT=${stagingPort}\n`);
+              fs.appendFileSync(envFile, `PGDATABASE=${stagingDb}\n`);
+              fs.appendFileSync(envFile, `PGUSER=${stagingUser}\n`);
+              fs.appendFileSync(envFile, `PGPASSWORD=${stagingPass}\n`);
+              fs.appendFileSync(envFile, `PGSSLMODE=${stagingSsl}\n`);
+            }
+
+            console.log("::add-mask::" + stagingPass);
+            console.log("::add-mask::" + stagingUser);
+            console.log("Safety checks passed: Target is confirmed to be the exact authorized Neon staging-test endpoint (ep-dry-queen-bej17wkv, db: neondb).");
+          '
 
       - name: Configure Rclone for Google Drive
         env:
@@ -196,54 +252,115 @@ jobs:
           echo "SUCCESS: Decrypted and decompressed SQL dump ready ($SQL_SIZE bytes)."
 
       - name: Execute Staging Database Restoration via psql
-        env:
-          STAGING_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: |
           set -eo pipefail
-          echo "Executing restore against Neon staging database with ON_ERROR_STOP=1..."
-          export PGSSLMODE=require
+          # Unset production database URLs to guarantee zero accidental connection
+          unset DATABASE_URL
+          unset BACKUP_DATABASE_URL
 
-          # Restore with strict error stopping
-          psql -v ON_ERROR_STOP=1 "$STAGING_URL" -f "./restore/restore_dump.sql"
+          echo "Executing restore against Neon staging database using environment variables (ON_ERROR_STOP=1)..."
+          # Invoked without passing connection URL or passwords in command-line arguments
+          psql -v ON_ERROR_STOP=1 -f "./restore/restore_dump.sql"
 
           echo "================================================================"
           echo "SUCCESS: Database restoration script executed without errors."
           echo "================================================================"
 
       - name: Verify Restored Tables & Record Counts
-        env:
-          STAGING_URL: ${{ secrets.STAGING_DATABASE_URL }}
         run: |
           set -eo pipefail
-          export PGSSLMODE=require
+          unset DATABASE_URL
+          unset BACKUP_DATABASE_URL
 
-          echo "Querying restored tables in staging database..."
-          psql "$STAGING_URL" -c '
-            SELECT
-              (SELECT count(*) FROM "Category") AS categories_count,
-              (SELECT count(*) FROM "InventoryHistory") AS inventory_history_count,
-              (SELECT count(*) FROM "Product") AS products_count,
-              (SELECT count(*) FROM "Sale") AS sales_count,
-              (SELECT count(*) FROM "SaleItem") AS sale_items_count,
-              (SELECT count(*) FROM "User") AS users_count;
+          node -e '
+            const fs = require("fs");
+            const { spawnSync } = require("child_process");
+
+            // 1. Read dump file to detect which tables contain data in the backup
+            const sqlContent = fs.readFileSync("./restore/restore_dump.sql", "utf8");
+            const tables = ["Category", "InventoryHistory", "Product", "Sale", "SaleItem", "User"];
+            const dumpHasData = {};
+
+            for (const table of tables) {
+              const copyRegex = new RegExp(`COPY\\s+(?:public\\.)?["\x27]?${table}["\x27]?\\s+[^\\n]*FROM stdin;([\\s\\S]*?)\\\\?\\.`, "i");
+              const copyMatch = sqlContent.match(copyRegex);
+              let hasRows = copyMatch && copyMatch[1].trim().length > 0;
+              if (!hasRows) {
+                const insertRegex = new RegExp(`INSERT\\s+INTO\\s+(?:public\\.)?["\x27]?${table}["\x27]?`, "i");
+                hasRows = insertRegex.test(sqlContent);
+              }
+              dumpHasData[table] = Boolean(hasRows);
+            }
+
+            // 2. Query record counts from staging database via psql environment variables
+            const query = `
+              SELECT json_build_object(
+                \x27Category\x27, (SELECT count(*) FROM "Category"),
+                \x27InventoryHistory\x27, (SELECT count(*) FROM "InventoryHistory"),
+                \x27Product\x27, (SELECT count(*) FROM "Product"),
+                \x27Sale\x27, (SELECT count(*) FROM "Sale"),
+                \x27SaleItem\x27, (SELECT count(*) FROM "SaleItem"),
+                \x27User\x27, (SELECT count(*) FROM "User")
+              )::text;
+            `;
+
+            const res = spawnSync("psql", ["-v", "ON_ERROR_STOP=1", "-t", "-A", "-c", query], {
+              encoding: "utf8"
+            });
+
+            if (res.status !== 0 || !res.stdout) {
+              console.error("::error::Failed to query staging database counts:", res.stderr);
+              process.exit(1);
+            }
+
+            let counts;
+            try {
+              counts = JSON.parse(res.stdout.trim());
+            } catch (err) {
+              console.error("::error::Failed to parse counts JSON from psql:", res.stdout);
+              process.exit(1);
+            }
+
+            // 3. Compare counts against dump expectations
+            let allPassed = true;
+            console.log("================================================================");
+            console.log("DATABASE RESTORATION VERIFICATION REPORT");
+            console.log("================================================================");
+            console.log("| Table Name         | Rows in Dump | Restored Count | Status                                |");
+            console.log("|--------------------|--------------|----------------|---------------------------------------|");
+
+            for (const table of tables) {
+              const expected = dumpHasData[table];
+              const count = Number(counts[table] || 0);
+              let status = "PASSED";
+
+              if (expected && count === 0) {
+                status = "FAILED (Expected data but table is empty)";
+                allPassed = false;
+              } else if (!expected && count === 0) {
+                status = "PASSED (Empty in dump, empty in DB)";
+              } else if (count > 0) {
+                status = "PASSED (Populated)";
+              }
+
+              const tableNamePadded = table.padEnd(18);
+              const dumpPadded = (expected ? "Yes" : "No").padEnd(12);
+              const countPadded = String(count).padEnd(14);
+              console.log(`| ${tableNamePadded} | ${dumpPadded} | ${countPadded} | ${status.padEnd(37)} |`);
+            }
+            console.log("================================================================");
+
+            if (!allPassed) {
+              console.error("\n::error::Verification failed! One or more tables expected to contain data are empty.");
+              process.exit(1);
+            }
+
+            console.log("\nDISASTER RECOVERY STAGING TEST COMPLETED SUCCESSFULLY!");
+            console.log("All verification checks passed.");
           '
 
-          echo "Querying latest restored sales..."
-          psql "$STAGING_URL" -c '
-            SELECT "receiptNumber", "totalAmount", "paymentMethod", "createdAt", "idempotencyKey"
-            FROM "Sale"
-            ORDER BY "createdAt" DESC
-            LIMIT 5;
-          '
-
-          echo "================================================================"
-          echo "DISASTER RECOVERY STAGING TEST COMPLETED SUCCESSFULLY!"
-          echo "All core tables (Category, InventoryHistory, Product, Sale, SaleItem, User)"
-          echo "have been verified and populated in the staging database."
-          echo "================================================================"
-
-      - name: Clean Up & Shred Temporary Files
+      - name: Temporary-File Cleanup
         if: always()
         run: |
           rm -rf ./restore
-          echo "Temporary restore files securely cleaned."
+          echo "Temporary restore files cleaned up."
