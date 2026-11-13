@@ -1,9 +1,9 @@
-name: MedaMarket Daily Database Backup & Encryption
+name: MedaMarket S3 Backup & Encryption (Standby)
 
 on:
-  schedule:
-    # Runs daily at 03:00 UTC (07:00 AM Georgia time)
-    - cron: '0 3 * * *'
+  # Schedule disabled in favor of Google Drive workflow (.github/workflows/db-backup-gdrive.yml)
+  # schedule:
+  #   - cron: '0 3 * * *'
   workflow_dispatch:
     inputs:
       force_weekly:

@@ -4,7 +4,23 @@
  * Supported OS: Windows, macOS, Linux (Cross-platform)
  * Zero external CLI dependencies required for decryption and decompression.
  *
+ * Features:
+ *   - Direct download from Google Drive via rclone (or manual file input)
+ *   - SHA-256 integrity verification
+ *   - Native Node.js AES-256-CBC PBKDF2 decryption (no OpenSSL binary needed)
+ *   - Native gzip decompression
+ *   - Automatic target URL masking in logs
+ *   - Mandatory staging database confirmation guard
+ *
  * Usage:
+ *   # Option 1: Direct from Google Drive (downloads latest backup)
+ *   node scripts/restore-database.js \
+ *     --from-gdrive latest \
+ *     --target-url "postgresql://user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
+ *     --key "YOUR_BACKUP_ENCRYPTION_KEY" \
+ *     --confirm-staging
+ *
+ *   # Option 2: Using a locally downloaded backup file
  *   node scripts/restore-database.js \
  *     --backup ./medamarket_20261113.sql.gz.enc \
  *     --target-url "postgresql://user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
@@ -27,10 +43,20 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
     confirmStaging: false,
-    keepSql: false
+    keepSql: false,
+    fromGdrive: null
   };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--backup' || args[i] === '-b') options.backup = args[++i];
+    else if (args[i] === '--from-gdrive' || args[i] === '-g') {
+      const next = args[i + 1];
+      if (next && !next.startsWith('-')) {
+        options.fromGdrive = next;
+        i++;
+      } else {
+        options.fromGdrive = 'latest';
+      }
+    }
     else if (args[i] === '--target-url' || args[i] === '-t') options.targetUrl = args[++i];
     else if (args[i] === '--key' || args[i] === '-k') options.key = args[++i];
     else if (args[i] === '--confirm-staging') options.confirmStaging = true;
@@ -40,10 +66,6 @@ function parseArgs() {
   return options;
 }
 
-/**
- * Decrypts OpenSSL AES-256-CBC PBKDF2 formatted buffers natively using Node crypto.
- * No external openssl binary required.
- */
 function decryptOpenSslAes256(encryptedBuffer, passphrase) {
   if (encryptedBuffer.subarray(0, 8).toString('utf8') !== 'Salted__') {
     throw new Error('Invalid OpenSSL encrypted file format (missing Salted__ header)');
@@ -61,53 +83,114 @@ function decryptOpenSslAes256(encryptedBuffer, passphrase) {
   return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
-function checkPsqlAvailable() {
+function checkCommandAvailable(cmd) {
   try {
-    execSync('psql --version', { stdio: 'ignore' });
+    execSync(`${cmd} --version`, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
 }
 
+function downloadFromGoogleDrive(targetItem) {
+  if (!checkCommandAvailable('rclone')) {
+    throw new Error(
+      "rclone is not installed in PATH. Please install rclone to use --from-gdrive, or download the backup file manually from Google Drive (folder 'MedaMarket-Backups/daily') and pass --backup <file>."
+    );
+  }
+
+  let remoteFilename = targetItem;
+  if (targetItem === 'latest') {
+    console.log("Querying Google Drive for the latest backup in 'MedaMarket-Backups/daily/'...");
+    const filesList = execSync('rclone lsf "gdrive:MedaMarket-Backups/daily/"', { encoding: 'utf8' })
+      .split('\n')
+      .map((f) => f.trim())
+      .filter((f) => f.endsWith('.enc'))
+      .sort()
+      .reverse();
+
+    if (filesList.length === 0) {
+      throw new Error("No encrypted backups (.enc) found in Google Drive folder 'MedaMarket-Backups/daily/'.");
+    }
+    remoteFilename = filesList[0];
+    console.log(`Latest backup identified: ${remoteFilename}`);
+  }
+
+  const downloadsDir = path.resolve('./backups');
+  if (!fs.existsSync(downloadsDir)) {
+    fs.mkdirSync(downloadsDir, { recursive: true });
+  }
+
+  const localBackupPath = path.join(downloadsDir, remoteFilename);
+  const localChecksumPath = `${localBackupPath}.sha256`;
+
+  console.log(`Downloading ${remoteFilename} from Google Drive...`);
+  execSync(`rclone copyto "gdrive:MedaMarket-Backups/daily/${remoteFilename}" "${localBackupPath}"`, { stdio: 'inherit' });
+
+  // Attempt to download checksum
+  try {
+    execSync(`rclone copyto "gdrive:MedaMarket-Backups/daily/${remoteFilename}.sha256" "${localChecksumPath}"`, { stdio: 'ignore' });
+  } catch {
+    // Checksum file optional
+  }
+
+  // Verify checksum if available
+  if (fs.existsSync(localChecksumPath)) {
+    const expectedChecksum = fs.readFileSync(localChecksumPath, 'utf8').trim().split(/\s+/)[0];
+    const fileBytes = fs.readFileSync(localBackupPath);
+    const actualChecksum = crypto.createHash('sha256').update(fileBytes).digest('hex');
+    if (expectedChecksum && actualChecksum !== expectedChecksum) {
+      throw new Error(`Checksum verification failed! Expected ${expectedChecksum}, got ${actualChecksum}`);
+    }
+    console.log(`SHA-256 checksum verified: ${actualChecksum}`);
+  }
+
+  return localBackupPath;
+}
+
 async function main() {
   const args = parseArgs();
 
-  if (args.help || !args.backup || !args.targetUrl) {
+  if (args.help || (!args.backup && !args.fromGdrive) || !args.targetUrl) {
     console.log(`
 MedaMarket Safe Disaster Recovery Restoration Tool
 ==================================================
 Usage:
   node scripts/restore-database.js [options]
 
-Required Options:
-  --backup, -b       Path to encrypted backup (.sql.gz.enc), compressed (.sql.gz), or plain (.sql)
-  --target-url, -t   Target PostgreSQL Connection URL (STAGING / TEST ONLY)
-  --confirm-staging  Required safety flag confirming the target is NOT production
+Required Target:
+  --target-url, -t        Target PostgreSQL Connection URL (STAGING / TEST ONLY)
+  --confirm-staging       Required safety flag confirming the target is NOT production
 
-Optional Options:
-  --key, -k          Encryption passphrase (or export BACKUP_ENCRYPTION_KEY)
-  --keep-sql         Keep decrypted .sql file after completion
-  --help, -h         Show this help message
+Backup Source (Choose one):
+  --from-gdrive, -g       Download directly from Google Drive ('latest' or specific filename)
+  --backup, -b            Path to local encrypted backup file (.sql.gz.enc, .sql.gz, or .sql)
+
+Optional:
+  --key, -k               Encryption passphrase (or export BACKUP_ENCRYPTION_KEY)
+  --keep-sql              Keep decrypted .sql file after completion
+  --help, -h              Show this help message
 
 Examples:
+  # 1. Download and restore latest backup from Google Drive
+  node scripts/restore-database.js \\
+    --from-gdrive latest \\
+    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/staging_db?sslmode=require" \\
+    --key "your_secret_passphrase" \\
+    --confirm-staging
+
+  # 2. Restore from a locally downloaded file
   node scripts/restore-database.js \\
     --backup ./backups/medamarket_20261113.sql.gz.enc \\
-    --target-url "postgresql://staging_user:pass@staging-db.neon.tech/staging_db?sslmode=require" \\
+    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/staging_db?sslmode=require" \\
     --key "your_secret_passphrase" \\
     --confirm-staging
     `);
     process.exit(args.help ? 0 : 1);
   }
 
-  const backupPath = path.resolve(args.backup);
   const targetUrl = args.targetUrl || process.env.STAGING_DATABASE_URL;
   const encryptionKey = args.key || process.env.BACKUP_ENCRYPTION_KEY;
-
-  if (!fs.existsSync(backupPath)) {
-    console.error(`[CRITICAL] Backup file not found at: ${backupPath}`);
-    process.exit(1);
-  }
 
   if (!args.confirmStaging) {
     console.error(`\n[SAFETY ABORT] Missing required safety flag: --confirm-staging`);
@@ -124,12 +207,28 @@ Examples:
     process.exit(1);
   }
 
+  let backupPath = args.backup ? path.resolve(args.backup) : null;
+
+  // If Google Drive download requested
+  if (args.fromGdrive) {
+    try {
+      backupPath = downloadFromGoogleDrive(args.fromGdrive);
+    } catch (err) {
+      console.error(`\n[ERROR] Google Drive download failed:`, err.message);
+      process.exit(1);
+    }
+  }
+
+  if (!backupPath || !fs.existsSync(backupPath)) {
+    console.error(`[CRITICAL] Backup file not found at: ${backupPath}`);
+    process.exit(1);
+  }
+
   console.log(`================================================================`);
   console.log(`MedaMarket Disaster Recovery Restoration`);
   console.log(`================================================================`);
   console.log(`Backup Source:   ${backupPath}`);
   console.log(`Target Database: ${maskUrl(targetUrl)}`);
-  console.log(`Working Dir:     ${process.cwd()}`);
   console.log(`----------------------------------------------------------------`);
 
   let currentBuffer = fs.readFileSync(backupPath);
@@ -164,7 +263,7 @@ Examples:
     tempFilesToClean.push(sqlFilePath);
 
     console.log(`Step 3: Preparing database execution...`);
-    const psqlExists = checkPsqlAvailable();
+    const psqlExists = checkCommandAvailable('psql');
 
     if (psqlExists) {
       console.log(`  Found psql client. Executing restore against target database...`);
@@ -187,7 +286,6 @@ Examples:
       console.log(`     docker run --rm -v "${path.dirname(sqlFilePath)}":/data postgres:17 psql "${maskUrl(targetUrl)}" -f /data/${path.basename(sqlFilePath)}`);
       console.log(`  3. Neon Console SQL Editor / DBeaver / pgAdmin.`);
       
-      // Keep SQL file so the user can use it
       args.keepSql = true;
     }
   } catch (err) {

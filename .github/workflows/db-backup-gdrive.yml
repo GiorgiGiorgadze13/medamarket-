@@ -1,0 +1,216 @@
+name: MedaMarket Daily Google Drive Backup & Encryption
+
+on:
+  schedule:
+    # Runs daily at 03:00 UTC (07:00 AM Georgia time)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_weekly:
+        description: 'Force a copy to weekly retention folder'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  backup:
+    name: Backup, Encrypt & Upload to Google Drive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Latest PostgreSQL Client (PGDG 17), Tools & Rclone
+        run: |
+          set -eo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y curl ca-certificates gnupg lsb-release jq
+          
+          # Setup PostgreSQL official repository (PGDG 17)
+          sudo install -d /etc/apt/keyrings
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor --yes -o /etc/apt/keyrings/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17 openssl
+          
+          # Install latest rclone
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          
+          pg_dump --version
+          rclone version
+
+      - name: Verify Environment Secrets
+        env:
+          CHECK_DB_URL: ${{ secrets.BACKUP_DATABASE_URL || secrets.DATABASE_URL }}
+          CHECK_ENC_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          CHECK_GDRIVE_TOKEN: ${{ secrets.RCLONE_GDRIVE_TOKEN }}
+          CHECK_RCLONE_CONF: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          set -eo pipefail
+          MISSING=0
+          if [ -z "$CHECK_DB_URL" ]; then
+            echo "::error::Missing DATABASE_URL or BACKUP_DATABASE_URL secret"
+            MISSING=1
+          fi
+          if [ -z "$CHECK_ENC_KEY" ]; then
+            echo "::error::Missing BACKUP_ENCRYPTION_KEY secret"
+            MISSING=1
+          fi
+          if [ -z "$CHECK_GDRIVE_TOKEN" ] && [ -z "$CHECK_RCLONE_CONF" ]; then
+            echo "::error::Missing RCLONE_GDRIVE_TOKEN (or RCLONE_CONFIG) secret for Google Drive authorization"
+            MISSING=1
+          fi
+
+          if [ $MISSING -eq 1 ]; then
+            echo "Please configure the missing repository secrets under GitHub Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "Required secrets verified."
+
+      - name: Configure Rclone for Google Drive
+        env:
+          GDRIVE_TOKEN: ${{ secrets.RCLONE_GDRIVE_TOKEN }}
+          RCLONE_CONF_DATA: ${{ secrets.RCLONE_CONFIG }}
+        run: |
+          set -eo pipefail
+          mkdir -p ~/.config/rclone
+
+          if [ -n "$RCLONE_CONF_DATA" ]; then
+            echo "$RCLONE_CONF_DATA" > ~/.config/rclone/rclone.conf
+          else
+            cat << EOF > ~/.config/rclone/rclone.conf
+[gdrive]
+type = drive
+scope = drive
+token = $GDRIVE_TOKEN
+EOF
+          fi
+
+          # Mask token in logs
+          echo "Verifying Google Drive connectivity..."
+          rclone lsd gdrive: || {
+            echo "::error::Failed to connect to Google Drive. Please check RCLONE_GDRIVE_TOKEN."
+            exit 1
+          }
+          echo "Google Drive connection verified successfully."
+
+      - name: Run Database Dump, Compress & Encrypt
+        env:
+          DB_URL: ${{ secrets.BACKUP_DATABASE_URL || secrets.DATABASE_URL }}
+          ENC_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -eo pipefail
+          echo "::add-mask::$DB_URL"
+          echo "::add-mask::$ENC_KEY"
+
+          export PGSSLMODE=require
+
+          TIMESTAMP=$(date -u +'%Y%m%d_%H%M%S')
+          DAY_OF_WEEK=$(date -u +'%u') # 7 = Sunday
+          BACKUP_NAME="medamarket_${TIMESTAMP}.sql.gz"
+          ENC_BACKUP_NAME="${BACKUP_NAME}.enc"
+
+          mkdir -p ./backups
+          echo "Executing pg_dump from Neon PostgreSQL..."
+          pg_dump --no-owner --no-privileges --clean --if-exists "$DB_URL" > "./backups/temp_dump.sql"
+
+          # Verify dump is non-empty
+          RAW_SIZE=$(stat -c%s "./backups/temp_dump.sql" || echo 0)
+          if [ "$RAW_SIZE" -lt 100 ]; then
+            echo "::error::pg_dump failed or produced an empty dump ($RAW_SIZE bytes)"
+            exit 1
+          fi
+          echo "Database dump completed successfully ($RAW_SIZE bytes raw SQL)."
+
+          echo "Compressing SQL dump with gzip level 9..."
+          gzip -9 -c "./backups/temp_dump.sql" > "./backups/${BACKUP_NAME}"
+          rm -f "./backups/temp_dump.sql"
+
+          GZIP_SIZE=$(stat -c%s "./backups/${BACKUP_NAME}" || echo 0)
+          echo "Compression complete ($GZIP_SIZE bytes gzip)."
+
+          echo "Encrypting backup with AES-256-CBC (PBKDF2 100,000 iterations)..."
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 100000 \
+            -in "./backups/${BACKUP_NAME}" \
+            -out "./backups/${ENC_BACKUP_NAME}" \
+            -pass pass:"$ENC_KEY"
+
+          # Calculate SHA-256 checksum
+          sha256sum "./backups/${ENC_BACKUP_NAME}" > "./backups/${ENC_BACKUP_NAME}.sha256"
+          echo "Encrypted file checksum: $(cat ./backups/${ENC_BACKUP_NAME}.sha256)"
+
+          # Set output environment variables for upload steps
+          echo "ENC_BACKUP_FILE=./backups/${ENC_BACKUP_NAME}" >> $GITHUB_ENV
+          echo "BACKUP_FILENAME=${ENC_BACKUP_NAME}" >> $GITHUB_ENV
+          echo "DAY_OF_WEEK=${DAY_OF_WEEK}" >> $GITHUB_ENV
+
+          # Shred unencrypted gzip immediately
+          rm -f "./backups/${BACKUP_NAME}"
+          echo "Local unencrypted files shredded."
+
+      - name: Upload Encrypted Backup to Google Drive (MedaMarket-Backups)
+        env:
+          FORCE_WEEKLY: ${{ github.event.inputs.force_weekly }}
+        run: |
+          set -eo pipefail
+
+          echo "Uploading encrypted backup to Google Drive folder: MedaMarket-Backups/daily/ ..."
+          rclone copyto "$ENC_BACKUP_FILE" "gdrive:MedaMarket-Backups/daily/${BACKUP_FILENAME}"
+          rclone copyto "${ENC_BACKUP_FILE}.sha256" "gdrive:MedaMarket-Backups/daily/${BACKUP_FILENAME}.sha256"
+
+          # If today is Sunday (day 7) or forced weekly, upload to weekly folder
+          if [ "$DAY_OF_WEEK" -eq 7 ] || [ "$FORCE_WEEKLY" = "true" ]; then
+            echo "Weekly retention condition met (Sunday or manual flag). Uploading to MedaMarket-Backups/weekly/ ..."
+            rclone copyto "$ENC_BACKUP_FILE" "gdrive:MedaMarket-Backups/weekly/${BACKUP_FILENAME}"
+            rclone copyto "${ENC_BACKUP_FILE}.sha256" "gdrive:MedaMarket-Backups/weekly/${BACKUP_FILENAME}.sha256"
+          fi
+
+          echo "Upload to Google Drive complete."
+
+      - name: Verify Uploaded Backup on Google Drive
+        run: |
+          set -eo pipefail
+          echo "Verifying remote file integrity on Google Drive..."
+          REMOTE_SIZE=$(rclone size "gdrive:MedaMarket-Backups/daily/${BACKUP_FILENAME}" --json | jq -r '.bytes' || echo 0)
+          
+          if [ -z "$REMOTE_SIZE" ] || [ "$REMOTE_SIZE" -le 100 ]; then
+            echo "::error::Google Drive backup verification failed! File size: $REMOTE_SIZE bytes"
+            exit 1
+          fi
+          echo "VERIFIED: Remote backup file exists on Google Drive with valid size: $REMOTE_SIZE bytes."
+
+      - name: Apply Retention Policy (Keep 7 Daily & 4 Weekly)
+        run: |
+          set -eo pipefail
+
+          echo "Applying daily retention policy (retaining newest 7 snapshots)..."
+          rclone lsf "gdrive:MedaMarket-Backups/daily/" 2>/dev/null | grep '\.enc$' | sort -r > /tmp/all_daily.txt || true
+
+          TOTAL_DAILY=$(wc -l < /tmp/all_daily.txt || echo 0)
+          echo "Total daily backups found on Google Drive: $TOTAL_DAILY"
+          if [ "$TOTAL_DAILY" -gt 7 ]; then
+            tail -n +8 /tmp/all_daily.txt | while read -r OLD_FILE; do
+              if [ -n "$OLD_FILE" ]; then
+                echo "Pruning expired daily backup from Google Drive: $OLD_FILE"
+                rclone deletefile "gdrive:MedaMarket-Backups/daily/${OLD_FILE}"
+                rclone deletefile "gdrive:MedaMarket-Backups/daily/${OLD_FILE}.sha256" 2>/dev/null || true
+              fi
+            done
+          fi
+
+          echo "Applying weekly retention policy (retaining newest 4 snapshots)..."
+          rclone lsf "gdrive:MedaMarket-Backups/weekly/" 2>/dev/null | grep '\.enc$' | sort -r > /tmp/all_weekly.txt || true
+
+          TOTAL_WEEKLY=$(wc -l < /tmp/all_weekly.txt || echo 0)
+          echo "Total weekly backups found on Google Drive: $TOTAL_WEEKLY"
+          if [ "$TOTAL_WEEKLY" -gt 4 ]; then
+            tail -n +5 /tmp/all_weekly.txt | while read -r OLD_FILE; do
+              if [ -n "$OLD_FILE" ]; then
+                echo "Pruning expired weekly backup from Google Drive: $OLD_FILE"
+                rclone deletefile "gdrive:MedaMarket-Backups/weekly/${OLD_FILE}"
+                rclone deletefile "gdrive:MedaMarket-Backups/weekly/${OLD_FILE}.sha256" 2>/dev/null || true
+              fi
+            done
+          fi
+
+          echo "Google Drive retention policy successfully enforced."
