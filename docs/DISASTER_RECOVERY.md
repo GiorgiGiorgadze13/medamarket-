@@ -101,7 +101,36 @@ Run the following command in your terminal:
 > [!CAUTION]
 > NEVER test restoration on your live production database! Always test against a dedicated staging database or separate Neon branch.
 
-### Recommended Method: Using Environment Variables (Windows CMD)
+### Option A: Automated Staging Restore via GitHub Actions (Recommended)
+
+You can run an automated end-to-end restoration test directly inside GitHub Actions without installing anything locally:
+
+1. **Create an isolated Neon branch:**
+   - Go to [console.neon.tech](https://console.neon.tech).
+   - In your project, click **Branches** -> **New Branch**.
+   - Branch name: `staging-test` (parent: `main` or empty).
+   - Copy the branch connection string.
+
+2. **Add the `STAGING_DATABASE_URL` secret in GitHub:**
+   - Go to `https://github.com/GiorgiGiorgadze13/medamarket-/settings/secrets/actions`.
+   - Click **New repository secret**.
+   - Name: `STAGING_DATABASE_URL`
+   - Value: Paste the Neon `staging-test` branch connection string.
+   - Click **Add secret**.
+
+3. **Run the manual workflow:**
+   - In your GitHub repository, click the **Actions** tab.
+   - In the left sidebar, click **MedaMarket Staging Restore Test**.
+   - Click **Run workflow** -> **Run workflow** (leave backup filename blank for latest, or specify an exact filename).
+   - The workflow:
+     1. Verifies that `STAGING_DATABASE_URL` does NOT match the production database.
+     2. Downloads the backup and its `.sha256` checksum from Google Drive using `rclone`.
+     3. Validates the SHA-256 hash.
+     4. Decrypts via AES-256 PBKDF2 (100,000 iter) and decompresses gzip.
+     5. Restores into the staging branch using `psql -v ON_ERROR_STOP=1`.
+     6. Queries and outputs record counts for `Category`, `InventoryHistory`, `Product`, `Sale`, `SaleItem`, and `User`.
+
+### Option B: Local CLI Restoration via Environment Variables (Windows CMD)
 
 Setting credentials via environment variables prevents passwords and keys from appearing in terminal history or system process lists:
 
