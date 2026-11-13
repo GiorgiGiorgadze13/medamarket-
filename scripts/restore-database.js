@@ -4,37 +4,33 @@
  * Supported OS: Windows, macOS, Linux (Cross-platform)
  * Zero external CLI dependencies required for decryption and decompression.
  *
- * Safety & Security Rules:
+ * Security & Reliability:
  *   1. NEVER restore directly into the production database.
- *   2. Authoritative production database detection: reads backend/.env independently.
- *      Never allows environment variables to override or mask production identity.
+ *   2. Authoritative production detection: reads backend/.env independently.
+ *      Never allows process.env to override or hide the real production destination.
  *   3. Fail-safe design: aborts immediately if production database identity is uncertain.
- *   4. Mandates matching SHA-256 checksum file (.sha256) for all backups before decryption.
- *   5. Connection strings and passwords are masked in logs and kept out of CLI process arguments.
- *   6. Strict error handling: psql uses -v ON_ERROR_STOP=1 so SQL errors halt immediately.
- *   7. Byte-compatible with existing AES-256-CBC PBKDF2 (100,000 iterations) and gzip backups.
+ *   4. Mandates matching SHA-256 checksum file (.sha256) before decryption.
+ *   5. Connection security: parses connection URL into PGHOST, PGPORT, PGDATABASE,
+ *      PGUSER, PGPASSWORD, PGSSLMODE. Credentials are NEVER passed via CLI arguments.
+ *   6. Process execution: uses spawnSync with explicit argument arrays (no shell interpolation).
+ *   7. Exit code verification: psql uses -v ON_ERROR_STOP=1 and exit status is strictly checked.
+ *   8. Byte-compatible with existing AES-256-CBC PBKDF2 (100,000 iter) and gzip backups.
  *
- * Usage:
- *   # Option 1: Direct from Google Drive (downloads latest backup and its checksum)
- *   node scripts/restore-database.js \
- *     --from-gdrive latest \
- *     --target-url "postgresql://staging_user:pass@ep-staging.eu-central-1.aws.neon.tech/neondb?sslmode=require" \
- *     --key "YOUR_BACKUP_ENCRYPTION_KEY" \
- *     --confirm-staging
+ * Safe Environment-Based Usage (Recommended):
+ *   # Windows CMD:
+ *   set STAGING_DATABASE_URL=postgresql://user:pass@ep-staging.us-east-2.aws.neon.tech/neondb?sslmode=require
+ *   set BACKUP_ENCRYPTION_KEY=YOUR_BACKUP_ENCRYPTION_KEY
+ *   node scripts/restore-database.js --from-gdrive latest --confirm-staging
  *
- *   # Option 2: Using a locally downloaded backup file (requires .sha256 alongside)
- *   node scripts/restore-database.js \
- *     --backup ./backups/medamarket_20261113.sql.gz.enc \
- *     --target-url "postgresql://staging_user:pass@ep-staging.eu-central-1.aws.neon.tech/neondb?sslmode=require" \
- *     --key "YOUR_BACKUP_ENCRYPTION_KEY" \
- *     --confirm-staging
+ *   # Or with local backup file:
+ *   node scripts/restore-database.js --backup ./backups/medamarket_20261113.sql.gz.enc --confirm-staging
  */
 
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const childProcess = require('child_process');
 
 /**
  * Safely masks database credentials for display in console and logs.
@@ -45,17 +41,55 @@ function maskUrl(rawUrl) {
 }
 
 /**
- * Parses hostname and pathname from a database connection URI.
+ * Parses hostname and database name for safety matching against production.
  */
 function parseHostAndDb(rawUrl) {
   try {
     const parsed = new URL(rawUrl);
     return {
       host: parsed.hostname.toLowerCase(),
-      pathname: parsed.pathname.toLowerCase()
+      pathname: parsed.pathname.toLowerCase().replace(/^\//, '')
     };
   } catch {
     return { host: '', pathname: '' };
+  }
+}
+
+/**
+ * Parses a PostgreSQL connection URI and extracts individual connection parameters,
+ * properly decoding URL-encoded usernames and passwords.
+ */
+function parsePostgresUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    if (!parsed.protocol.startsWith('postgres')) {
+      throw new Error('Invalid connection protocol: expected postgres: or postgresql:');
+    }
+
+    const host = parsed.hostname;
+    const port = parsed.port || '5432';
+    const database = parsed.pathname.replace(/^\//, '');
+    const user = decodeURIComponent(parsed.username || '');
+    const password = decodeURIComponent(parsed.password || '');
+    const sslmode = parsed.searchParams.get('sslmode') || 'require';
+
+    if (!host) {
+      throw new Error('Missing database host in target URL');
+    }
+    if (!database) {
+      throw new Error('Missing database name in target URL');
+    }
+
+    return {
+      host,
+      port,
+      database,
+      user,
+      password,
+      sslmode
+    };
+  } catch (err) {
+    throw new Error(`Failed to parse target database URL: ${err.message}`);
   }
 }
 
@@ -83,7 +117,7 @@ function getAuthoritativeProductionDbUrl() {
 }
 
 /**
- * Parses command line arguments.
+ * Parses command-line arguments.
  */
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -118,33 +152,12 @@ function parseArgs() {
 }
 
 /**
- * Decrypts OpenSSL AES-256-CBC PBKDF2 formatted buffers natively using Node crypto.
- * Matches exact format from .github/workflows/db-backup-gdrive.yml.
- */
-function decryptOpenSslAes256(encryptedBuffer, passphrase) {
-  if (encryptedBuffer.subarray(0, 8).toString('utf8') !== 'Salted__') {
-    throw new Error('Invalid OpenSSL encrypted file format (missing Salted__ header)');
-  }
-
-  const salt = encryptedBuffer.subarray(8, 16);
-  const ciphertext = encryptedBuffer.subarray(16);
-
-  // Derive 32-byte key + 16-byte IV using PBKDF2 with SHA-256 and 100,000 iterations
-  const derived = crypto.pbkdf2Sync(passphrase, salt, 100000, 48, 'sha256');
-  const key = derived.subarray(0, 32);
-  const iv = derived.subarray(32, 48);
-
-  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-}
-
-/**
- * Checks if a CLI command is available in PATH.
+ * Checks if a CLI command is available in PATH using childProcess.spawnSync.
  */
 function checkCommandAvailable(cmd) {
   try {
-    execSync(`${cmd} --version`, { stdio: 'ignore' });
-    return true;
+    const res = childProcess.spawnSync(cmd, ['--version'], { stdio: 'ignore' });
+    return res.status === 0;
   } catch {
     return false;
   }
@@ -189,7 +202,7 @@ function verifySha256Checksum(backupFilePath) {
 }
 
 /**
- * Downloads backup and its mandatory .sha256 checksum from Google Drive using rclone.
+ * Downloads backup and its mandatory .sha256 checksum from Google Drive using rclone and spawnSync.
  */
 function downloadFromGoogleDrive(targetItem) {
   if (!checkCommandAvailable('rclone')) {
@@ -201,7 +214,12 @@ function downloadFromGoogleDrive(targetItem) {
   let remoteFilename = targetItem;
   if (targetItem === 'latest') {
     console.log("Querying Google Drive for the latest backup in 'MedaMarket-Backups/daily/'...");
-    const filesList = execSync('rclone lsf "gdrive:MedaMarket-Backups/daily/"', { encoding: 'utf8' })
+    const lsfRes = childProcess.spawnSync('rclone', ['lsf', 'gdrive:MedaMarket-Backups/daily/'], { encoding: 'utf8' });
+    if (lsfRes.status !== 0 || !lsfRes.stdout) {
+      throw new Error(`Failed to list backups from Google Drive: ${lsfRes.stderr || 'Unknown error'}`);
+    }
+
+    const filesList = lsfRes.stdout
       .split(/\r?\n/)
       .map((f) => f.trim())
       .filter((f) => f.endsWith('.enc'))
@@ -224,30 +242,98 @@ function downloadFromGoogleDrive(targetItem) {
   const localChecksumPath = `${localBackupPath}.sha256`;
 
   console.log(`Downloading ${remoteFilename} from Google Drive...`);
-  execSync(`rclone copyto "gdrive:MedaMarket-Backups/daily/${remoteFilename}" "${localBackupPath}"`, { stdio: 'inherit' });
+  const copyBackupRes = childProcess.spawnSync('rclone', ['copyto', `gdrive:MedaMarket-Backups/daily/${remoteFilename}`, localBackupPath], { stdio: 'inherit' });
+  if (copyBackupRes.status !== 0) {
+    throw new Error(`rclone download failed for backup file: ${remoteFilename}`);
+  }
 
   console.log(`Downloading ${remoteFilename}.sha256 checksum from Google Drive...`);
-  try {
-    execSync(`rclone copyto "gdrive:MedaMarket-Backups/daily/${remoteFilename}.sha256" "${localChecksumPath}"`, { stdio: 'inherit' });
-  } catch (err) {
+  const copyCheckRes = childProcess.spawnSync('rclone', ['copyto', `gdrive:MedaMarket-Backups/daily/${remoteFilename}.sha256`, localChecksumPath], { stdio: 'inherit' });
+  if (copyCheckRes.status !== 0) {
     throw new Error(`Failed to download required checksum file from Google Drive: ${remoteFilename}.sha256`);
   }
 
   return localBackupPath;
 }
 
+/**
+ * Decrypts OpenSSL AES-256-CBC PBKDF2 formatted buffers natively using Node crypto.
+ * Matches exact format from .github/workflows/db-backup-gdrive.yml.
+ */
+function decryptOpenSslAes256(encryptedBuffer, passphrase) {
+  if (encryptedBuffer.subarray(0, 8).toString('utf8') !== 'Salted__') {
+    throw new Error('Invalid OpenSSL encrypted file format (missing Salted__ header)');
+  }
+
+  const salt = encryptedBuffer.subarray(8, 16);
+  const ciphertext = encryptedBuffer.subarray(16);
+
+  // Derive 32-byte key + 16-byte IV using PBKDF2 with SHA-256 and 100,000 iterations
+  const derived = crypto.pbkdf2Sync(passphrase, salt, 100000, 48, 'sha256');
+  const key = derived.subarray(0, 32);
+  const iv = derived.subarray(32, 48);
+
+  const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
+
+/**
+ * Executes psql using spawnSync with argument arrays and environment variables.
+ * Credentials are NEVER exposed on the command line.
+ */
+function executePsqlRestore(sqlFilePath, pgConfig) {
+  const psqlArgs = ['-v', 'ON_ERROR_STOP=1', '-f', sqlFilePath];
+
+  const psqlEnv = {
+    ...process.env,
+    PGHOST: pgConfig.host,
+    PGPORT: String(pgConfig.port),
+    PGDATABASE: pgConfig.database,
+    PGUSER: pgConfig.user,
+    PGPASSWORD: pgConfig.password,
+    PGSSLMODE: pgConfig.sslmode
+  };
+
+  const res = childProcess.spawnSync('psql', psqlArgs, {
+    stdio: 'inherit',
+    env: psqlEnv
+  });
+
+  if (res.error) {
+    throw res.error;
+  }
+
+  if (res.status !== 0) {
+    throw new Error(`psql restore failed with non-zero exit status: ${res.status}`);
+  }
+}
+
 async function main() {
   const args = parseArgs();
 
-  if (args.help || (!args.backup && !args.fromGdrive) || !args.targetUrl) {
+  // Prefer environment variables for secrets to avoid exposure in process tables or history
+  const targetUrl = process.env.STAGING_DATABASE_URL || process.env.TARGET_DATABASE_URL || args.targetUrl;
+  const encryptionKey = process.env.BACKUP_ENCRYPTION_KEY || args.key;
+
+  if (args.targetUrl || args.key) {
+    console.warn(`[SECURITY RECOMMENDATION] Database URL or key was passed as CLI argument.`);
+    console.warn(`Prefer setting STAGING_DATABASE_URL and BACKUP_ENCRYPTION_KEY in environment variables.`);
+  }
+
+  if (args.help || (!args.backup && !args.fromGdrive) || !targetUrl) {
     console.log(`
 MedaMarket Safe Disaster Recovery Restoration Tool
 ==================================================
 Usage:
   node scripts/restore-database.js [options]
 
+Recommended Usage (via Environment Variables):
+  set STAGING_DATABASE_URL=postgresql://user:pass@ep-staging.us-east-2.aws.neon.tech/neondb?sslmode=require
+  set BACKUP_ENCRYPTION_KEY=your_secret_passphrase
+  node scripts/restore-database.js --from-gdrive latest --confirm-staging
+
 Required Target:
-  --target-url, -t        Target PostgreSQL Connection URL (STAGING / TEST ONLY)
+  --target-url, -t        Target PostgreSQL Connection URL (or set STAGING_DATABASE_URL env)
   --confirm-staging       Required safety flag confirming the target is NOT production
 
 Backup Source (Choose one):
@@ -255,30 +341,12 @@ Backup Source (Choose one):
   --backup, -b            Path to local encrypted backup file (.sql.gz.enc) with matching .sha256
 
 Optional:
-  --key, -k               Encryption passphrase (or export BACKUP_ENCRYPTION_KEY)
+  --key, -k               Encryption passphrase (or set BACKUP_ENCRYPTION_KEY env)
   --keep-sql              Keep decrypted .sql file after completion
   --help, -h              Show this help message
-
-Examples:
-  # 1. Download and restore latest backup from Google Drive
-  node scripts/restore-database.js \\
-    --from-gdrive latest \\
-    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/neondb?sslmode=require" \\
-    --key "your_secret_passphrase" \\
-    --confirm-staging
-
-  # 2. Restore from a locally downloaded file
-  node scripts/restore-database.js \\
-    --backup ./backups/medamarket_20261113.sql.gz.enc \\
-    --target-url "postgresql://staging_user:pass@ep-staging.neon.tech/neondb?sslmode=require" \\
-    --key "your_secret_passphrase" \\
-    --confirm-staging
     `);
     process.exit(args.help ? 0 : 1);
   }
-
-  const targetUrl = args.targetUrl;
-  const encryptionKey = args.key || process.env.BACKUP_ENCRYPTION_KEY;
 
   // Safety Rule 1: Explicit confirmation required
   if (!args.confirmStaging) {
@@ -332,6 +400,15 @@ Examples:
     }
   }
 
+  // Parse target PostgreSQL URL into individual parameters
+  let pgConfig;
+  try {
+    pgConfig = parsePostgresUrl(targetUrl);
+  } catch (err) {
+    console.error(`\n[CONFIGURATION ERROR] ${err.message}\n`);
+    process.exit(1);
+  }
+
   let backupPath = args.backup ? path.resolve(args.backup) : null;
 
   // Download from Google Drive if requested
@@ -361,7 +438,7 @@ Examples:
   console.log(`MedaMarket Disaster Recovery Restoration`);
   console.log(`================================================================`);
   console.log(`Backup Source:   ${backupPath}`);
-  console.log(`Target Database: ${maskUrl(targetUrl)}`);
+  console.log(`Target Database: ${maskUrl(targetUrl)} (Host: ${pgConfig.host}, DB: ${pgConfig.database})`);
   console.log(`----------------------------------------------------------------`);
 
   let currentBuffer = fs.readFileSync(backupPath);
@@ -373,7 +450,7 @@ Examples:
     if (fileName.endsWith('.enc')) {
       if (!encryptionKey) {
         console.error(`[ERROR] File is encrypted (.enc) but no encryption key provided.`);
-        console.error(`Pass --key "your_key" or set the BACKUP_ENCRYPTION_KEY environment variable.`);
+        console.error(`Set the BACKUP_ENCRYPTION_KEY environment variable or pass --key.`);
         process.exit(1);
       }
       console.log(`Step 1: Decrypting AES-256 backup using native PBKDF2...`);
@@ -400,15 +477,7 @@ Examples:
 
     if (psqlExists) {
       console.log(`  Found psql client. Executing restore with ON_ERROR_STOP=1...`);
-      // Keep credentials out of process arguments: pass connection string via PGDATABASE env
-      execSync(`psql -v ON_ERROR_STOP=1 -f "${sqlFilePath}"`, {
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          PGDATABASE: targetUrl,
-          PGSSLMODE: 'require'
-        }
-      });
+      executePsqlRestore(sqlFilePath, pgConfig);
       console.log(`\n================================================================`);
       console.log(` SUCCESS: Database restoration completed successfully via psql.`);
       console.log(` All tables and records restored cleanly to target database.`);
@@ -422,7 +491,7 @@ Examples:
       console.log(`  2. Prisma CLI:`);
       console.log(`     npx --prefix backend prisma db execute --file "${sqlFilePath}" --url "${maskUrl(targetUrl)}"`);
       console.log(`  3. psql CLI (if installed):`);
-      console.log(`     psql -v ON_ERROR_STOP=1 "${maskUrl(targetUrl)}" -f "${sqlFilePath}"`);
+      console.log(`     psql -v ON_ERROR_STOP=1 -h ${pgConfig.host} -p ${pgConfig.port} -U ${pgConfig.user} -d ${pgConfig.database} -f "${sqlFilePath}"`);
 
       args.keepSql = true;
     }
@@ -443,4 +512,16 @@ Examples:
   }
 }
 
-main();
+// Export internal helper functions for testing
+module.exports = {
+  parsePostgresUrl,
+  parseHostAndDb,
+  maskUrl,
+  decryptOpenSslAes256,
+  verifySha256Checksum,
+  executePsqlRestore
+};
+
+if (require.main === module) {
+  main();
+}

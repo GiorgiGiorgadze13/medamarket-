@@ -101,29 +101,35 @@ Run the following command in your terminal:
 > [!CAUTION]
 > NEVER test restoration on your live production database! Always test against a dedicated staging database or separate Neon branch.
 
-### Method A: Direct Restoration (Downloads Latest from Google Drive)
+### Recommended Method: Using Environment Variables (Windows CMD)
 
-If you have `rclone` installed on your machine:
-```bash
-node scripts/restore-database.js \
-  --from-gdrive latest \
-  --target-url "postgresql://staging_user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
-  --key "YOUR_BACKUP_ENCRYPTION_KEY" \
-  --confirm-staging
+Setting credentials via environment variables prevents passwords and keys from appearing in terminal history or system process lists:
+
+```cmd
+cd /d D:\Medamarket
+
+:: 1. Set credentials in current session environment
+set STAGING_DATABASE_URL=postgresql://staging_user:password@ep-staging.us-east-2.aws.neon.tech/neondb?sslmode=require
+set BACKUP_ENCRYPTION_KEY=YOUR_BACKUP_ENCRYPTION_KEY
+
+:: 2. Execute safe restore (Option A: directly from Google Drive)
+node scripts/restore-database.js --from-gdrive latest --confirm-staging
+
+:: Or (Option B: using a locally downloaded backup and .sha256 file)
+node scripts/restore-database.js --backup ./backups/medamarket_20261113.sql.gz.enc --confirm-staging
 ```
 
-### Method B: Manual Download from Google Drive (Zero Dependencies)
+### Linux / macOS / Git Bash Equivalent:
 
-If you downloaded the `.sql.gz.enc` file directly from Google Drive:
 ```bash
-node scripts/restore-database.js \
-  --backup ./medamarket_20261113_030000.sql.gz.enc \
-  --target-url "postgresql://staging_user:pass@ep-staging.eu-central-1.aws.neon.tech/staging_db?sslmode=require" \
-  --key "YOUR_BACKUP_ENCRYPTION_KEY" \
-  --confirm-staging
+cd /path/to/Medamarket
+export STAGING_DATABASE_URL="postgresql://staging_user:password@ep-staging.us-east-2.aws.neon.tech/neondb?sslmode=require"
+export BACKUP_ENCRYPTION_KEY="YOUR_BACKUP_ENCRYPTION_KEY"
+
+node scripts/restore-database.js --from-gdrive latest --confirm-staging
 ```
 
-The script natively decrypts (AES-256 PBKDF2), decompresses gzip, verifies safety checks, and restores the SQL schema and data.
+The script natively verifies SHA-256 integrity, decrypts (AES-256 PBKDF2), decompresses gzip, verifies safety checks, and restores the SQL schema and data cleanly.
 
 ---
 

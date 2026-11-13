@@ -37,3 +37,9 @@ Thumbs.db
 # Vercel
 .vercel
 
+
+# Backups and temporary restore files (NEVER COMMIT BACKUPS)
+backups/
+*.enc
+*.sha256
+restore_*_temp.sql
