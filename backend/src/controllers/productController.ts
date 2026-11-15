@@ -34,7 +34,9 @@ export const getProducts = async (req: AuthRequest, res: Response): Promise<void
 
     let filtered = products
     if (lowStock === 'true') {
-      filtered = filtered.filter(p => p.stock > 0 && p.stock <= p.minStockLevel)
+      filtered = filtered
+        .filter(p => p.stock <= p.minStockLevel)
+        .sort((a, b) => a.stock - b.stock)
     }
     if (outOfStock === 'true') {
       filtered = filtered.filter(p => p.stock <= 0)

@@ -532,9 +532,16 @@ export default function DashboardPage() {
               <AlertTriangle className="w-5 h-5 text-amber-500" />
               <h3 className="text-sm font-bold text-slate-800">შესავსები მარაგები</h3>
             </div>
-            <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
-              {lowStockProducts.length} პოზიცია
-            </span>
+            <div className="flex items-center gap-1.5">
+              {lowStockProducts.some((p) => p.stock <= 0) && (
+                <span className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                  {lowStockProducts.filter((p) => p.stock <= 0).length} ამოწურული
+                </span>
+              )}
+              <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                {lowStockProducts.length} პოზიცია
+              </span>
+            </div>
           </div>
 
           {lowStockProducts.length === 0 ? (
@@ -544,28 +551,38 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-              {lowStockProducts.map((p) => (
-                <div key={p.id} className="py-2.5 flex items-center justify-between text-xs">
-                  <div>
-                    <p className="font-semibold text-slate-800 line-clamp-1">{p.name}</p>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      შტრიხ-კოდი: {p.barcode}
-                    </span>
-                  </div>
+              {lowStockProducts.map((p) => {
+                const isOut = p.stock <= 0
+                return (
+                  <div key={p.id} className="py-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-slate-800 line-clamp-1">{p.name}</p>
+                        {isOut && (
+                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-rose-600 text-white shrink-0">
+                            ამოიწურა
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        შტრიხ-კოდი: {p.barcode}
+                      </span>
+                    </div>
 
-                  <div className="text-right">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-full font-bold text-[11px] ${
-                        p.stock <= 0
-                          ? 'bg-rose-100 text-rose-700'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      დარჩა: {p.stock} (მინ: {p.minStockLevel})
-                    </span>
+                    <div className="text-right">
+                      <span
+                        className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
+                          isOut
+                            ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {isOut ? `დარჩა: 0 (ამოწურული)` : `დარჩა: ${p.stock}`} (მინ: {p.minStockLevel})
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
