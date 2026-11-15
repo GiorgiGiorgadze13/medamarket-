@@ -221,16 +221,16 @@ export const api = {
 
   // Dashboard & Analytics
   dashboard: {
-    getStats: async (params?: { startDate?: string; endDate?: string }) => {
+    getStats: async (params?: { period?: string; startDate?: string; endDate?: string }) => {
       const res = await apiClient.get<DashboardStats>('/dashboard/stats', { params })
       return res.data
     },
-    getRevenueChart: async (params?: { period?: 'daily' | 'weekly' | 'monthly' | 'yearly' }) => {
+    getRevenueChart: async (params?: { period?: string; startDate?: string; endDate?: string }) => {
       const res = await apiClient.get<{ chartData: RevenueChartData[] }>('/dashboard/revenue-chart', { params })
       return Array.isArray(res.data?.chartData) ? res.data.chartData : []
     },
-    getBestSellers: async () => {
-      const res = await apiClient.get<{ bestSellers: BestSeller[] }>('/dashboard/best-sellers')
+    getBestSellers: async (params?: { period?: string; startDate?: string; endDate?: string }) => {
+      const res = await apiClient.get<{ bestSellers: BestSeller[] }>('/dashboard/best-sellers', { params })
       return Array.isArray(res.data?.bestSellers) ? res.data.bestSellers : []
     },
   },

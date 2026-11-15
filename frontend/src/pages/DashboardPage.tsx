@@ -34,21 +34,59 @@ import toast from 'react-hot-toast'
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6']
 
+type PeriodType = 'today' | '2days' | '3days' | 'custom' | 'week' | '2weeks' | 'month' | 'year'
+
+const PERIOD_OPTIONS: { id: PeriodType; label: string }[] = [
+  { id: 'today', label: 'დღევანდელი' },
+  { id: '2days', label: '2 დღის' },
+  { id: '3days', label: '3 დღის' },
+  { id: 'custom', label: 'ნებისმიერი დღის' },
+  { id: 'week', label: 'კვირის' },
+  { id: '2weeks', label: '2 კვირის' },
+  { id: 'month', label: 'თვის' },
+  { id: 'year', label: 'წლის' },
+]
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [chartData, setChartData] = useState<RevenueChartData[]>([])
   const [bestSellers, setBestSellers] = useState<BestSeller[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([])
-  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily')
+  const [period, setPeriod] = useState<PeriodType>('today')
+  const [customStartDate, setCustomStartDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
+  const [customEndDate, setCustomEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [isLoading, setIsLoading] = useState<boolean>(true)
+
+  const getActivePeriodLabel = () => {
+    if (period === 'custom') {
+      if (customStartDate && customEndDate && customStartDate === customEndDate) {
+        return `თარიღი: ${customStartDate}`
+      }
+      if (customStartDate && customEndDate) {
+        return `${customStartDate} - ${customEndDate}`
+      }
+      return 'ნებისმიერი დღის'
+    }
+    const match = PERIOD_OPTIONS.find((p) => p.id === period)
+    return match?.label || 'დღევანდელი'
+  }
 
   const loadDashboardData = async () => {
     setIsLoading(true)
     try {
+      const params =
+        period === 'custom'
+          ? {
+              period: 'custom',
+              startDate: customStartDate || undefined,
+              endDate: customEndDate || undefined,
+            }
+          : { period }
+
       const [statsData, chartRes, bestSellersData, prods] = await Promise.all([
-        api.dashboard.getStats(),
-        api.dashboard.getRevenueChart({ period }),
-        api.dashboard.getBestSellers(),
+        api.dashboard.getStats(params),
+        api.dashboard.getRevenueChart(params),
+        api.dashboard.getBestSellers(params),
         api.products.getAll({ lowStock: true }),
       ])
       setStats(statsData)
@@ -65,7 +103,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadDashboardData()
-  }, [period])
+  }, [period, customStartDate, customEndDate])
 
   // Payment Breakdown for Pie Chart
   const paymentBreakdownData = stats
@@ -100,21 +138,16 @@ export default function DashboardPage() {
         </div>
 
         {/* Period Selector & Refresh */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-xs text-xs font-semibold overflow-x-auto">
-            {[
-              { id: 'daily', label: '14 დღე' },
-              { id: 'weekly', label: 'კვირა' },
-              { id: 'monthly', label: 'თვე' },
-              { id: 'yearly', label: 'წელი' },
-            ].map((p) => (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-xs text-xs font-semibold overflow-x-auto max-w-full">
+            {PERIOD_OPTIONS.map((p) => (
               <button
                 key={p.id}
-                onClick={() => setPeriod(p.id as any)}
-                className={`px-3 py-1.5 rounded-lg transition-all ${
+                onClick={() => setPeriod(p.id)}
+                className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap ${
                   period === p.id
                     ? 'bg-slate-900 text-white shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 {p.label}
@@ -125,12 +158,51 @@ export default function DashboardPage() {
           <button
             onClick={loadDashboardData}
             title="განახლება"
-            className="p-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl transition-colors shadow-xs"
+            className="p-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl transition-colors shadow-xs shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
+
+      {/* Custom Date Range Picker when "ნებისმიერი დღის" is selected */}
+      {period === 'custom' && (
+        <div className="flex items-center gap-2 bg-white border border-emerald-200 rounded-2xl p-3 shadow-xs text-xs flex-wrap animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
+            <Calendar className="w-4 h-4 text-emerald-600" />
+            <span>აირჩიეთ თარიღი:</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+            <span className="text-slate-400 font-medium">დან:</span>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="bg-transparent text-slate-700 outline-none text-xs cursor-pointer font-medium"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs">
+            <span className="text-slate-400 font-medium">მდე:</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="bg-transparent text-slate-700 outline-none text-xs cursor-pointer font-medium"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const todayStr = new Date().toISOString().slice(0, 10)
+              setCustomStartDate(todayStr)
+              setCustomEndDate(todayStr)
+            }}
+            className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-xl transition-colors"
+          >
+            დღევანდელი დღე
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -154,7 +226,7 @@ export default function DashboardPage() {
             </h3>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-0.5">
               <ArrowUpRight className="w-3 h-3" />
-              <span>LIVE</span>
+              <span>{getActivePeriodLabel()}</span>
             </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-2">დღგ-ს ჩათვლით</p>
@@ -235,7 +307,11 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-800">შემოსავლების დინამიკა (₾)</h3>
-              <p className="text-xs text-slate-400">დღიური შემოსავლისა და ტრანზაქციების გრაფიკი</p>
+              <p className="text-xs text-slate-400">
+                {period === 'today' || (period === 'custom' && customStartDate === customEndDate)
+                  ? 'საათობრივი შემოსავლისა და ტრანზაქციების დინამიკა'
+                  : 'დღიური შემოსავლისა და ტრანზაქციების გრაფიკი'}
+              </p>
             </div>
           </div>
 
@@ -268,6 +344,10 @@ export default function DashboardPage() {
                   />
                   <Tooltip
                     formatter={(value: any) => [`${value} ₾`, 'შემოსავალი']}
+                    labelFormatter={(label: any) => {
+                      const str = String(label)
+                      return str.includes(':') ? `საათი: ${str}` : `თარიღი: ${str}`
+                    }}
                     contentStyle={{
                       backgroundColor: '#1e293b',
                       borderRadius: '8px',
@@ -280,6 +360,7 @@ export default function DashboardPage() {
                     dataKey="revenue"
                     stroke="#10b981"
                     strokeWidth={2.5}
+                    dot={chartData.length <= 5 ? { r: 4 } : false}
                     fillOpacity={1}
                     fill="url(#colorRevenue)"
                   />
@@ -355,7 +436,9 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
           <div className="flex items-center gap-2 mb-4">
             <Award className="w-5 h-5 text-amber-500" />
-            <h3 className="text-sm font-bold text-slate-800">ტოპ გაყიდვადი პროდუქტები (30 დღე)</h3>
+            <h3 className="text-sm font-bold text-slate-800">
+              ტოპ გაყიდვადი პროდუქტები ({getActivePeriodLabel()})
+            </h3>
           </div>
 
           {bestSellers.length === 0 ? (
