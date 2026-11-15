@@ -128,14 +128,31 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
 
     let cashRevenue = 0
     let cardRevenue = 0
+    let bogCardRevenue = 0
+    let tbcCardRevenue = 0
+    let libertyCardRevenue = 0
+    let otherCardRevenue = 0
+
     for (const sale of sales) {
       if (sale.paymentMethod === 'CASH') {
         cashRevenue += Number(sale.finalAmount)
       } else if (sale.paymentMethod === 'CARD') {
-        cardRevenue += Number(sale.finalAmount)
+        const amt = Number(sale.finalAmount)
+        cardRevenue += amt
+        const bank = sale.cardBank
+        if (bank === 'BOG') bogCardRevenue += amt
+        else if (bank === 'TBC') tbcCardRevenue += amt
+        else if (bank === 'LIBERTY') libertyCardRevenue += amt
+        else otherCardRevenue += amt
       } else if (sale.paymentMethod === 'MIXED') {
         cashRevenue += Number(sale.cashAmount || 0)
-        cardRevenue += Number(sale.cardAmount || 0)
+        const amt = Number(sale.cardAmount || 0)
+        cardRevenue += amt
+        const bank = sale.cardBank
+        if (bank === 'BOG') bogCardRevenue += amt
+        else if (bank === 'TBC') tbcCardRevenue += amt
+        else if (bank === 'LIBERTY') libertyCardRevenue += amt
+        else otherCardRevenue += amt
       }
     }
 
@@ -158,6 +175,10 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
       totalItemsSold,
       cashRevenue,
       cardRevenue,
+      bogCardRevenue,
+      tbcCardRevenue,
+      libertyCardRevenue,
+      otherCardRevenue,
       grossProfit,
       totalProducts,
       lowStockProducts,

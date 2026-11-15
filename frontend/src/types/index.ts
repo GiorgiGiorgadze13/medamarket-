@@ -37,6 +37,7 @@ export interface Product {
 }
 
 export type PaymentMethod = 'CASH' | 'CARD' | 'MIXED'
+export type CardBank = 'BOG' | 'TBC' | 'LIBERTY' | 'OTHER'
 
 export interface SaleItem {
   id?: string
@@ -63,6 +64,7 @@ export interface Sale {
   discountAmount: number | string
   finalAmount: number | string
   paymentMethod: PaymentMethod
+  cardBank?: CardBank | string | null
   cashAmount?: number | string | null
   cardAmount?: number | string | null
   changeAmount: number | string
@@ -104,6 +106,10 @@ export interface DashboardStats {
   totalItemsSold: number
   cashRevenue: number
   cardRevenue: number
+  bogCardRevenue?: number
+  tbcCardRevenue?: number
+  libertyCardRevenue?: number
+  otherCardRevenue?: number
   grossProfit: number
   totalProducts: number
   lowStockProducts: number

@@ -56,6 +56,7 @@ model Sale {
   discountAmount Float    @default(0)
   finalAmount    Float
   paymentMethod  String
+  cardBank       String?
   cashAmount     Float?
   cardAmount     Float?
   changeAmount   Float    @default(0)

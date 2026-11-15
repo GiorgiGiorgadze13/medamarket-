@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { api } from '../services/api'
-import { Sale, PaymentMethod } from '../types'
+import { Sale, PaymentMethod, CardBank } from '../types'
 import {
   Receipt,
   Search,
@@ -20,6 +20,24 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+const getBankName = (bank?: string | null) => {
+  if (!bank) return 'საქართველოს ბანკი'
+  if (bank === 'BOG') return 'საქართველოს ბანკი'
+  if (bank === 'TBC') return 'თიბისი'
+  if (bank === 'LIBERTY') return 'ლიბერთი'
+  if (bank === 'OTHER') return 'სხვა'
+  return bank
+}
+
+const getBankShortName = (bank?: string | null) => {
+  if (!bank) return 'BOG'
+  if (bank === 'BOG') return 'BOG'
+  if (bank === 'TBC') return 'TBC'
+  if (bank === 'LIBERTY') return 'Liberty'
+  if (bank === 'OTHER') return 'სხვა'
+  return bank
+}
+
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([])
   const [total, setTotal] = useState<number>(0)
@@ -31,7 +49,9 @@ export default function SalesPage() {
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [searchReceipt, setSearchReceipt] = useState<string>('')
-  const [paymentFilter, setPaymentFilter] = useState<'ALL' | PaymentMethod>('ALL')
+  const [paymentFilter, setPaymentFilter] = useState<
+    'ALL' | PaymentMethod | 'CARD_BOG' | 'CARD_TBC' | 'CARD_LIBERTY' | 'CARD_OTHER'
+  >('ALL')
 
   // Selected Sale for Receipt Modal
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
@@ -94,7 +114,18 @@ export default function SalesPage() {
         s.receiptNumber.toLowerCase().includes(searchReceipt.toLowerCase()) ||
         s.cashier?.name.toLowerCase().includes(searchReceipt.toLowerCase())
 
-      const matchesPayment = paymentFilter === 'ALL' || s.paymentMethod === paymentFilter
+      const matchesPayment =
+        paymentFilter === 'ALL'
+          ? true
+          : paymentFilter === 'CARD_BOG'
+          ? s.paymentMethod === 'CARD' && (s.cardBank === 'BOG' || !s.cardBank)
+          : paymentFilter === 'CARD_TBC'
+          ? s.paymentMethod === 'CARD' && s.cardBank === 'TBC'
+          : paymentFilter === 'CARD_LIBERTY'
+          ? s.paymentMethod === 'CARD' && s.cardBank === 'LIBERTY'
+          : paymentFilter === 'CARD_OTHER'
+          ? s.paymentMethod === 'CARD' && s.cardBank === 'OTHER'
+          : s.paymentMethod === paymentFilter
       return matchesSearch && matchesPayment
     })
   }, [sales, searchReceipt, paymentFilter])
@@ -218,21 +249,25 @@ export default function SalesPage() {
         </div>
 
         {/* Payment Method filter chips */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-2 flex items-center gap-1">
+        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 flex-wrap">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
             <Filter className="w-3.5 h-3.5" />
             გადახდის ტიპი:
           </span>
           {[
             { id: 'ALL', label: 'ყველა' },
             { id: 'CASH', label: 'ნაღდი' },
-            { id: 'CARD', label: 'ბარათი' },
+            { id: 'CARD', label: 'ბარათი (ყველა)' },
+            { id: 'CARD_BOG', label: 'საქართველო' },
+            { id: 'CARD_TBC', label: 'თიბისი' },
+            { id: 'CARD_LIBERTY', label: 'ლიბერთი' },
+            { id: 'CARD_OTHER', label: 'სხვა ბანკი' },
             { id: 'MIXED', label: 'შერეული' },
           ].map((item) => (
             <button
               key={item.id}
               onClick={() => setPaymentFilter(item.id as any)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                 paymentFilter === item.id
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -307,7 +342,13 @@ export default function SalesPage() {
                             sale.paymentMethod === 'CASH'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : sale.paymentMethod === 'CARD'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                              ? sale.cardBank === 'BOG'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : sale.cardBank === 'TBC'
+                                ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                                : sale.cardBank === 'LIBERTY'
+                                ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                                : 'bg-slate-100 text-slate-800 border border-slate-300'
                               : 'bg-purple-50 text-purple-700 border border-purple-200'
                           }`}
                         >
@@ -318,7 +359,9 @@ export default function SalesPage() {
                             {sale.paymentMethod === 'CASH'
                               ? 'ნაღდი'
                               : sale.paymentMethod === 'CARD'
-                              ? 'ბარათი'
+                              ? `ბარათი (${getBankShortName(sale.cardBank)})`
+                              : sale.cardBank
+                              ? `შერეული (${getBankShortName(sale.cardBank)})`
                               : 'შერეული'}
                           </span>
                         </span>
@@ -493,7 +536,9 @@ export default function SalesPage() {
                       {selectedSale.paymentMethod === 'CASH'
                         ? 'ნაღდი'
                         : selectedSale.paymentMethod === 'CARD'
-                        ? 'ბარათი'
+                        ? `ბარათი (${getBankName(selectedSale.cardBank)})`
+                        : selectedSale.cardBank
+                        ? `შერეული (${getBankName(selectedSale.cardBank)})`
                         : 'შერეული'}
                     </span>
                   </div>

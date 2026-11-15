@@ -109,7 +109,10 @@ export default function DashboardPage() {
   const paymentBreakdownData = stats
     ? [
         { name: 'ნაღდი ფული', value: stats.cashRevenue },
-        { name: 'საბანკო ბარათი', value: stats.cardRevenue },
+        { name: 'საქართველოს ბანკი', value: stats.bogCardRevenue || 0 },
+        { name: 'თიბისი', value: stats.tbcCardRevenue || 0 },
+        { name: 'ლიბერთი', value: stats.libertyCardRevenue || 0 },
+        { name: 'სხვა ბარათი', value: stats.otherCardRevenue || 0 },
       ].filter((d) => d.value > 0)
     : []
 
@@ -413,19 +416,51 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
-            <div className="bg-emerald-50/50 p-2 rounded-xl">
-              <span className="text-slate-400 block text-[10px] font-semibold">ნაღდი</span>
-              <strong className="text-emerald-700">
-                {(stats?.cashRevenue || 0).toFixed(2)} ₾
-              </strong>
+          <div className="pt-4 border-t border-slate-100 space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-center text-xs">
+              <div className="bg-emerald-50/50 p-2 rounded-xl">
+                <span className="text-slate-400 block text-[10px] font-semibold">ნაღდი</span>
+                <strong className="text-emerald-700">
+                  {(stats?.cashRevenue || 0).toFixed(2)} ₾
+                </strong>
+              </div>
+              <div className="bg-blue-50/50 p-2 rounded-xl">
+                <span className="text-slate-400 block text-[10px] font-semibold">ბარათი (სულ)</span>
+                <strong className="text-blue-700">
+                  {(stats?.cardRevenue || 0).toFixed(2)} ₾
+                </strong>
+              </div>
             </div>
-            <div className="bg-blue-50/50 p-2 rounded-xl">
-              <span className="text-slate-400 block text-[10px] font-semibold">ბარათი</span>
-              <strong className="text-blue-700">
-                {(stats?.cardRevenue || 0).toFixed(2)} ₾
-              </strong>
-            </div>
+
+            {/* Terminal bank breakdown */}
+            {(stats?.cardRevenue || 0) > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1 text-[11px] text-center">
+                <div className="bg-amber-50/60 border border-amber-200/60 p-1.5 rounded-lg">
+                  <span className="text-amber-800/80 block text-[9px] font-bold">საქართველო</span>
+                  <strong className="text-amber-900 font-extrabold">
+                    {(stats?.bogCardRevenue || 0).toFixed(2)} ₾
+                  </strong>
+                </div>
+                <div className="bg-sky-50/60 border border-sky-200/60 p-1.5 rounded-lg">
+                  <span className="text-sky-800/80 block text-[9px] font-bold">თიბისი</span>
+                  <strong className="text-sky-900 font-extrabold">
+                    {(stats?.tbcCardRevenue || 0).toFixed(2)} ₾
+                  </strong>
+                </div>
+                <div className="bg-rose-50/60 border border-rose-200/60 p-1.5 rounded-lg">
+                  <span className="text-rose-800/80 block text-[9px] font-bold">ლიბერთი</span>
+                  <strong className="text-rose-900 font-extrabold">
+                    {(stats?.libertyCardRevenue || 0).toFixed(2)} ₾
+                  </strong>
+                </div>
+                <div className="bg-slate-50 border border-slate-200 p-1.5 rounded-lg">
+                  <span className="text-slate-600 block text-[9px] font-bold">სხვა</span>
+                  <strong className="text-slate-800 font-extrabold">
+                    {(stats?.otherCardRevenue || 0).toFixed(2)} ₾
+                  </strong>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

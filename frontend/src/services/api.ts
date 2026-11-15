@@ -149,6 +149,7 @@ export const api = {
     create: async (data: {
       items: { productId: string; quantity: number; discountPercent?: number }[]
       paymentMethod: 'CASH' | 'CARD' | 'MIXED'
+      cardBank?: string | null
       cashAmount?: number | null
       cardAmount?: number | null
       discountAmount?: number
@@ -157,7 +158,14 @@ export const api = {
       const res = await apiClient.post<{ sale: Sale; isDuplicate?: boolean }>('/sales', data)
       return res.data.sale
     },
-    getAll: async (params?: { startDate?: string; endDate?: string; page?: number; limit?: number }) => {
+    getAll: async (params?: {
+      startDate?: string
+      endDate?: string
+      page?: number
+      limit?: number
+      paymentMethod?: string
+      cardBank?: string
+    }) => {
       const res = await apiClient.get<{
         sales: Sale[]
         total: number

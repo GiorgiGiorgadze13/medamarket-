@@ -14,7 +14,7 @@ function generateReceiptNumber(): string {
 
 export const createSale = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { items, paymentMethod, cashAmount, cardAmount, discountAmount, idempotencyKey } = req.body
+    const { items, paymentMethod, cashAmount, cardAmount, discountAmount, idempotencyKey, cardBank } = req.body
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: 'კალათა ცარიელია' })
@@ -25,6 +25,11 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
       res.status(400).json({ error: 'გადახდის მეთოდი არასწორია' })
       return
     }
+
+    const validCardBank =
+      (paymentMethod === 'CARD' || paymentMethod === 'MIXED') && typeof cardBank === 'string' && cardBank.trim().length > 0
+        ? cardBank.trim()
+        : null
 
     // 1. Idempotency Check: If key was provided, verify if sale already exists
     const validIdempotencyKey = typeof idempotencyKey === 'string' && idempotencyKey.trim().length > 0
@@ -123,6 +128,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           discountAmount: totalDiscount,
           finalAmount,
           paymentMethod: paymentMethod as PaymentMethod,
+          cardBank: validCardBank,
           cashAmount: cashAmount !== undefined && cashAmount !== null ? Number(cashAmount) : null,
           cardAmount: cardAmount !== undefined && cardAmount !== null ? Number(cardAmount) : null,
           changeAmount,
@@ -204,7 +210,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getSales = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { startDate, endDate, page = '1', limit = '20' } = req.query
+    const { startDate, endDate, page = '1', limit = '20', paymentMethod, cardBank } = req.query
     const skip = (Number(page) - 1) * Number(limit)
 
     const where: any = {}
@@ -212,6 +218,14 @@ export const getSales = async (req: AuthRequest, res: Response): Promise<void> =
       where.createdAt = {}
       if (startDate) where.createdAt.gte = new Date(String(startDate))
       if (endDate) where.createdAt.lte = new Date(String(endDate) + 'T23:59:59.999Z')
+    }
+
+    if (paymentMethod && paymentMethod !== 'ALL') {
+      where.paymentMethod = String(paymentMethod)
+    }
+
+    if (cardBank && cardBank !== 'ALL') {
+      where.cardBank = String(cardBank)
     }
 
     const [sales, total] = await prisma.$transaction([

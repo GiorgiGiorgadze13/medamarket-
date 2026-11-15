@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api, getErrorMessage } from '../services/api'
-import { Product, Category, Sale, PaymentMethod } from '../types'
+import { Product, Category, Sale, PaymentMethod, CardBank } from '../types'
 import { useCart } from '../hooks/useCart'
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner'
 import {
@@ -58,6 +58,51 @@ function playBeep(type: 'success' | 'error' = 'success') {
   }
 }
 
+export const CARD_BANKS = [
+  {
+    id: 'BOG' as const,
+    label: 'საქართველოს ბანკი',
+    shortLabel: 'საქართველო',
+    activeClass: 'border-amber-500 bg-amber-50 text-amber-900 shadow-xs font-bold ring-2 ring-amber-400/40',
+    inactiveClass: 'border-slate-200 bg-white text-slate-700 hover:border-amber-300 hover:bg-amber-50/30',
+    indicator: 'bg-amber-500',
+    iconColor: 'text-amber-600',
+  },
+  {
+    id: 'TBC' as const,
+    label: 'თიბისი',
+    shortLabel: 'თიბისი',
+    activeClass: 'border-sky-500 bg-sky-50 text-sky-900 shadow-xs font-bold ring-2 ring-sky-400/40',
+    inactiveClass: 'border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50/30',
+    indicator: 'bg-sky-500',
+    iconColor: 'text-sky-600',
+  },
+  {
+    id: 'LIBERTY' as const,
+    label: 'ლიბერთი',
+    shortLabel: 'ლიბერთი',
+    activeClass: 'border-rose-500 bg-rose-50 text-rose-900 shadow-xs font-bold ring-2 ring-rose-400/40',
+    inactiveClass: 'border-slate-200 bg-white text-slate-700 hover:border-rose-300 hover:bg-rose-50/30',
+    indicator: 'bg-rose-500',
+    iconColor: 'text-rose-600',
+  },
+  {
+    id: 'OTHER' as const,
+    label: 'სხვა',
+    shortLabel: 'სხვა',
+    activeClass: 'border-slate-700 bg-slate-100 text-slate-900 shadow-xs font-bold ring-2 ring-slate-400/40',
+    inactiveClass: 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50',
+    indicator: 'bg-slate-700',
+    iconColor: 'text-slate-600',
+  },
+] as const
+
+export function getCardBankLabel(bankId?: string | null) {
+  if (!bankId) return 'საქართველოს ბანკი'
+  const match = CARD_BANKS.find((b) => b.id === bankId)
+  return match?.label || bankId
+}
+
 export default function POSPage() {
   const { user } = useAuth()
   const {
@@ -90,6 +135,7 @@ export default function POSPage() {
   // Payment Modal State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
+  const [selectedCardBank, setSelectedCardBank] = useState<CardBank>('BOG')
   const [cashTendered, setCashTendered] = useState<string>('')
   const [mixedCash, setMixedCash] = useState<string>('')
   const [mixedCard, setMixedCard] = useState<string>('')
@@ -294,6 +340,7 @@ export default function POSPage() {
 
     setIsMobileCartOpen(false)
     setPaymentMethod('CASH')
+    setSelectedCardBank('BOG')
     setCashTendered(total.toString())
     setMixedCash((total / 2).toFixed(2))
     setMixedCard((total / 2).toFixed(2))
@@ -348,9 +395,11 @@ export default function POSPage() {
         payload.cashAmount = cashNum
       } else if (paymentMethod === 'CARD') {
         payload.cardAmount = total
+        payload.cardBank = selectedCardBank
       } else if (paymentMethod === 'MIXED') {
         payload.cashAmount = mixedCashNum
         payload.cardAmount = mixedCardNum
+        payload.cardBank = selectedCardBank
       }
 
       const createdSale = await api.sales.create(payload)
@@ -1145,12 +1194,36 @@ export default function POSPage() {
 
               {/* CARD PAYMENT */}
               {paymentMethod === 'CARD' && (
-                <div className="p-4 sm:p-5 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-1.5">
-                  <CreditCard className="w-10 h-10 text-emerald-600 mx-auto" />
-                  <p className="text-sm font-bold text-slate-800">საბანკო ბარათით გადახდა</p>
-                  <p className="text-xs text-slate-500">
-                    გადახდა გაატარეთ POS ტერმინალზე <strong>{total.toFixed(2)} ₾</strong>
-                  </p>
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-1">
+                    <p className="text-xs text-slate-500">
+                      გადასახდელი თანხა: <strong className="text-slate-900 text-sm font-black">{total.toFixed(2)} ₾</strong>
+                    </p>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      აირჩიეთ საბანკო ტერმინალი:
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {CARD_BANKS.map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setSelectedCardBank(b.id)}
+                        className={`p-3 rounded-xl border-2 flex items-center justify-between transition-all ${
+                          selectedCardBank === b.id ? b.activeClass : b.inactiveClass
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <CreditCard className={`w-4 h-4 ${selectedCardBank === b.id ? 'text-current' : b.iconColor}`} />
+                          <span className="text-xs font-bold">{b.label}</span>
+                        </div>
+                        {selectedCardBank === b.id && (
+                          <span className="w-2 h-2 rounded-full bg-current" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1181,6 +1254,26 @@ export default function POSPage() {
                         onChange={(e) => setMixedCard(e.target.value)}
                         className="w-full text-center font-bold px-3 py-2 border rounded-lg focus:ring-1 focus:ring-emerald-500 focus:outline-none"
                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1.5">
+                      აირჩიეთ ბარათის ბანკი:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {CARD_BANKS.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setSelectedCardBank(b.id)}
+                          className={`py-2 px-1.5 rounded-xl border-2 text-[11px] font-bold text-center transition-all ${
+                            selectedCardBank === b.id ? b.activeClass : b.inactiveClass
+                          }`}
+                        >
+                          {b.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -1331,7 +1424,9 @@ export default function POSPage() {
                       {completedSale.paymentMethod === 'CASH'
                         ? 'ნაღდი'
                         : completedSale.paymentMethod === 'CARD'
-                        ? 'ბარათი'
+                        ? `ბარათი (${getCardBankLabel(completedSale.cardBank)})`
+                        : completedSale.cardBank
+                        ? `შერეული (${getCardBankLabel(completedSale.cardBank)})`
                         : 'შერეული'}
                     </span>
                   </div>
