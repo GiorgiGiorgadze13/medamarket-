@@ -136,6 +136,7 @@ export default function POSPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState<boolean>(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH')
   const [selectedCardBank, setSelectedCardBank] = useState<CardBank>('BOG')
+  const [customBankName, setCustomBankName] = useState<string>('')
   const [cashTendered, setCashTendered] = useState<string>('')
   const [mixedCash, setMixedCash] = useState<string>('')
   const [mixedCard, setMixedCard] = useState<string>('')
@@ -341,6 +342,7 @@ export default function POSPage() {
     setIsMobileCartOpen(false)
     setPaymentMethod('CASH')
     setSelectedCardBank('BOG')
+    setCustomBankName('')
     setCashTendered(total.toString())
     setMixedCash((total / 2).toFixed(2))
     setMixedCard((total / 2).toFixed(2))
@@ -391,15 +393,20 @@ export default function POSPage() {
         discountAmount: totalDiscount,
       }
 
+      const resolvedCardBank =
+        selectedCardBank === 'OTHER'
+          ? customBankName.trim() || 'სხვა'
+          : selectedCardBank
+
       if (paymentMethod === 'CASH') {
         payload.cashAmount = cashNum
       } else if (paymentMethod === 'CARD') {
         payload.cardAmount = total
-        payload.cardBank = selectedCardBank
+        payload.cardBank = resolvedCardBank
       } else if (paymentMethod === 'MIXED') {
         payload.cashAmount = mixedCashNum
         payload.cardAmount = mixedCardNum
-        payload.cardBank = selectedCardBank
+        payload.cardBank = resolvedCardBank
       }
 
       const createdSale = await api.sales.create(payload)
@@ -1224,6 +1231,22 @@ export default function POSPage() {
                       </button>
                     ))}
                   </div>
+
+                  {selectedCardBank === 'OTHER' && (
+                    <div className="pt-1 animate-in fade-in duration-200">
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        მიუთითეთ ბანკის ან ბარათის დასახელება:
+                      </label>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={customBankName}
+                        onChange={(e) => setCustomBankName(e.target.value)}
+                        placeholder="მაგ. კრედო, ტერაბანკი, პროკრედიტი, Revolut..."
+                        className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-xl text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400 shadow-xs"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1275,6 +1298,21 @@ export default function POSPage() {
                         </button>
                       ))}
                     </div>
+
+                    {selectedCardBank === 'OTHER' && (
+                      <div className="mt-2 animate-in fade-in duration-200">
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          მიუთითეთ ბანკის / ბარათის დასახელება:
+                        </label>
+                        <input
+                          type="text"
+                          value={customBankName}
+                          onChange={(e) => setCustomBankName(e.target.value)}
+                          placeholder="მაგ. კრედო, ტერაბანკი, Revolut..."
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 focus:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div

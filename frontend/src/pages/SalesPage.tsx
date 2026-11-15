@@ -124,7 +124,7 @@ export default function SalesPage() {
           : paymentFilter === 'CARD_LIBERTY'
           ? s.paymentMethod === 'CARD' && s.cardBank === 'LIBERTY'
           : paymentFilter === 'CARD_OTHER'
-          ? s.paymentMethod === 'CARD' && s.cardBank === 'OTHER'
+          ? s.paymentMethod === 'CARD' && s.cardBank !== 'BOG' && s.cardBank !== 'TBC' && s.cardBank !== 'LIBERTY'
           : s.paymentMethod === paymentFilter
       return matchesSearch && matchesPayment
     })
