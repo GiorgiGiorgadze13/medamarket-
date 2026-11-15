@@ -1212,39 +1212,65 @@ export default function POSPage() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
-                    {CARD_BANKS.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => setSelectedCardBank(b.id)}
-                        className={`p-3 rounded-xl border-2 flex items-center justify-between transition-all ${
-                          selectedCardBank === b.id ? b.activeClass : b.inactiveClass
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <CreditCard className={`w-4 h-4 ${selectedCardBank === b.id ? 'text-current' : b.iconColor}`} />
-                          <span className="text-xs font-bold">{b.label}</span>
-                        </div>
-                        {selectedCardBank === b.id && (
-                          <span className="w-2 h-2 rounded-full bg-current" />
-                        )}
-                      </button>
-                    ))}
+                    {CARD_BANKS.map((b) => {
+                      const isSelected = selectedCardBank === b.id
+                      const displayLabel =
+                        b.id === 'OTHER' && isSelected && customBankName.trim()
+                          ? customBankName.trim()
+                          : b.label
+
+                      return (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => setSelectedCardBank(b.id)}
+                          className={`p-3 rounded-xl border-2 flex items-center justify-between transition-all ${
+                            isSelected ? b.activeClass : b.inactiveClass
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <CreditCard className={`w-4 h-4 shrink-0 ${isSelected ? 'text-current' : b.iconColor}`} />
+                            <span className="text-xs font-bold truncate">{displayLabel}</span>
+                          </div>
+                          {isSelected && (
+                            <span className="w-2 h-2 rounded-full bg-current shrink-0 ml-1" />
+                          )}
+                        </button>
+                      )
+                    })}
                   </div>
 
                   {selectedCardBank === 'OTHER' && (
-                    <div className="pt-1 animate-in fade-in duration-200">
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        მიუთითეთ ბანკის ან ბარათის დასახელება:
-                      </label>
+                    <div className="p-3 bg-emerald-50/60 border-2 border-emerald-500 rounded-2xl space-y-2 animate-in fade-in duration-200 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-black text-emerald-950">
+                          ✍️ ჩაწერეთ რითი მოხდა გადახდა:
+                        </label>
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                          სხვა ბანკი / ბარათი
+                        </span>
+                      </div>
                       <input
                         type="text"
                         autoFocus
                         value={customBankName}
                         onChange={(e) => setCustomBankName(e.target.value)}
-                        placeholder="მაგ. კრედო, ტერაბანკი, პროკრედიტი, Revolut..."
-                        className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-slate-800 focus:ring-1 focus:ring-slate-800 rounded-xl text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400 shadow-xs"
+                        placeholder="მაგ. კრედო ბანკი, ტერაბანკი, პროკრედიტი, Revolut..."
+                        className="w-full px-3.5 py-2.5 bg-white border border-emerald-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 rounded-xl text-xs sm:text-sm font-bold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal shadow-xs"
                       />
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        <span className="text-[10px] font-bold text-slate-400">სწრაფი არჩევა:</span>
+                        {['კრედო ბანკი', 'ტერაბანკი', 'პროკრედიტი', 'Revolut', 'Payze'].map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => setCustomBankName(chip)}
+                            className="px-2 py-0.5 bg-white hover:bg-emerald-100/70 border border-slate-200 hover:border-emerald-300 rounded-lg text-[10px] font-bold text-slate-700 transition-colors"
+                          >
+                            +{chip}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1285,32 +1311,53 @@ export default function POSPage() {
                       აირჩიეთ ბარათის ბანკი:
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                      {CARD_BANKS.map((b) => (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => setSelectedCardBank(b.id)}
-                          className={`py-2 px-1.5 rounded-xl border-2 text-[11px] font-bold text-center transition-all ${
-                            selectedCardBank === b.id ? b.activeClass : b.inactiveClass
-                          }`}
-                        >
-                          {b.label}
-                        </button>
-                      ))}
+                      {CARD_BANKS.map((b) => {
+                        const isSelected = selectedCardBank === b.id
+                        const displayLabel =
+                          b.id === 'OTHER' && isSelected && customBankName.trim()
+                            ? customBankName.trim()
+                            : b.label
+
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => setSelectedCardBank(b.id)}
+                            className={`py-2 px-1.5 rounded-xl border-2 text-[11px] font-bold text-center transition-all truncate ${
+                              isSelected ? b.activeClass : b.inactiveClass
+                            }`}
+                          >
+                            {displayLabel}
+                          </button>
+                        )
+                      })}
                     </div>
 
                     {selectedCardBank === 'OTHER' && (
-                      <div className="mt-2 animate-in fade-in duration-200">
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          მიუთითეთ ბანკის / ბარათის დასახელება:
+                      <div className="mt-2.5 p-2.5 bg-emerald-50/60 border border-emerald-400 rounded-xl space-y-1.5 animate-in fade-in duration-200">
+                        <label className="block text-[11px] font-black text-emerald-950">
+                          ✍️ ჩაწერეთ რითი მოხდა გადახდა:
                         </label>
                         <input
                           type="text"
+                          autoFocus
                           value={customBankName}
                           onChange={(e) => setCustomBankName(e.target.value)}
-                          placeholder="მაგ. კრედო, ტერაბანკი, Revolut..."
-                          className="w-full px-3 py-1.5 bg-white border border-slate-300 focus:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 outline-none placeholder:text-slate-400"
+                          placeholder="მაგ. კრედო ბანკი, ტერაბანკი, Revolut..."
+                          className="w-full px-3 py-2 bg-white border border-emerald-300 focus:border-emerald-600 rounded-lg text-xs font-bold text-slate-900 outline-none placeholder:text-slate-400"
                         />
+                        <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                          {['კრედო', 'ტერაბანკი', 'პროკრედიტი', 'Revolut'].map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => setCustomBankName(chip)}
+                              className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-semibold text-slate-700 hover:bg-emerald-50"
+                            >
+                              +{chip}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
