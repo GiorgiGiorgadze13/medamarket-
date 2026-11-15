@@ -64,6 +64,74 @@ export function useCart() {
     }
   }, [cart])
 
+  // Synchronize cart with real-time product updates (stock, price, name, etc.)
+  const syncCartWithProducts = useCallback((latestProducts: Product[]) => {
+    if (!Array.isArray(latestProducts) || latestProducts.length === 0) return
+
+    setCart((prevCart) => {
+      let changed = false
+      const updated = prevCart.map((item) => {
+        const fresh = latestProducts.find((p) => p.id === item.product.id)
+        if (!fresh) return item
+
+        if (
+          item.product.stock !== fresh.stock ||
+          item.product.sellingPrice !== fresh.sellingPrice ||
+          item.product.name !== fresh.name ||
+          item.product.isActive !== fresh.isActive ||
+          item.product.barcode !== fresh.barcode
+        ) {
+          changed = true
+          return {
+            ...item,
+            product: { ...fresh },
+          }
+        }
+        return item
+      })
+
+      return changed ? updated : prevCart
+    })
+  }, [])
+
+  // Listen to product update events across windows/pages
+  useEffect(() => {
+    const handleProductUpdate = (e: Event) => {
+      const customEvt = e as CustomEvent<Product>
+      if (customEvt.detail && customEvt.detail.id) {
+        const fresh = customEvt.detail
+        setCart((prevCart) =>
+          prevCart.map((item) =>
+            item.product.id === fresh.id
+              ? { ...item, product: { ...fresh } }
+              : item
+          )
+        )
+      }
+    }
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === CART_STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue)
+          if (Array.isArray(parsed)) {
+            setCart(parsed)
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    window.addEventListener('medamarket:product-updated', handleProductUpdate)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('medamarket:product-updated', handleProductUpdate)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [])
+
   // Synchronize discount changes to localStorage
   const setDiscount = useCallback((amount: number) => {
     setDiscountState(amount)
@@ -103,6 +171,7 @@ export function useCart() {
         updated[existingIndex] = {
           ...updated[existingIndex],
           quantity: newQty,
+          product: { ...product }, // Keep latest product snapshot with fresh stock and price
         }
         return updated
       } else {
@@ -112,34 +181,56 @@ export function useCart() {
           return prevCart
         }
 
-        return [...prevCart, { product, quantity: Math.round(quantity * 1000) / 1000 }]
+        return [...prevCart, { product: { ...product }, quantity: Math.round(quantity * 1000) / 1000 }]
       }
     })
 
     return success
   }, [])
 
-  const updateQuantity = useCallback((productId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId))
-      return
-    }
+  const updateQuantity = useCallback(
+    (productId: string, newQuantity: number, maxStockOverride?: number) => {
+      if (newQuantity <= 0) {
+        setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId))
+        return
+      }
 
-    const rounded = Math.round(newQuantity * 1000) / 1000
+      const rounded = Math.round(newQuantity * 1000) / 1000
 
-    setCart((prevCart) =>
-      prevCart.map((item) => {
-        if (item.product.id === productId) {
-          if (rounded > item.product.stock) {
-            toast.error(`მაქსიმალური ხელმისაწვდომი მარაგი: ${item.product.stock}`)
-            return { ...item, quantity: item.product.stock }
+      setCart((prevCart) =>
+        prevCart.map((item) => {
+          if (item.product.id === productId) {
+            const effectiveMax =
+              typeof maxStockOverride === 'number' && maxStockOverride >= 0
+                ? maxStockOverride
+                : item.product.stock
+
+            if (rounded > effectiveMax) {
+              toast.error(`მაქსიმალური ხელმისაწვდომი მარაგი: ${effectiveMax}`)
+              return {
+                ...item,
+                quantity: effectiveMax,
+                product: {
+                  ...item.product,
+                  stock: effectiveMax,
+                },
+              }
+            }
+            return {
+              ...item,
+              quantity: rounded,
+              product:
+                typeof maxStockOverride === 'number' && maxStockOverride >= 0
+                  ? { ...item.product, stock: maxStockOverride }
+                  : item.product,
+            }
           }
-          return { ...item, quantity: rounded }
-        }
-        return item
-      })
-    )
-  }, [])
+          return item
+        })
+      )
+    },
+    []
+  )
 
   const setItemDiscount = useCallback((productId: string, discountPercent: number) => {
     const validPct = Math.min(100, Math.max(0, Math.round(discountPercent)))
@@ -209,6 +300,7 @@ export function useCart() {
     cart,
     addToCart,
     updateQuantity,
+    syncCartWithProducts,
     setItemDiscount,
     removeFromCart,
     clearCart,

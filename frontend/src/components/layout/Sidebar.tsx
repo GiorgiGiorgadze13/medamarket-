@@ -92,7 +92,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-tight text-white leading-tight">Meda Market</h1>
+              <h1 className="font-bold text-base tracking-tight text-white leading-tight">მე და მარკეტი</h1>
               <span className="text-[11px] font-medium text-emerald-400">POS & Inventory System</span>
             </div>
           </div>

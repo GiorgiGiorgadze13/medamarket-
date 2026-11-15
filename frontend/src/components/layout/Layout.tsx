@@ -24,7 +24,7 @@ export default function Layout() {
             <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
               <ShoppingBag className="w-4 h-4" />
             </div>
-            <span className="font-bold text-sm tracking-tight">Meda Market</span>
+            <span className="font-bold text-sm tracking-tight">მე და მარკეტი</span>
           </div>
         </div>
 

@@ -465,8 +465,9 @@ export default function SalesPage() {
               >
                 {/* Header */}
                 <div className="text-center border-b border-dashed border-slate-300 pb-3 mb-3">
-                  <h4 className="font-extrabold text-base tracking-wider text-slate-900">MEDA MARKET</h4>
+                  <h4 className="font-extrabold text-base tracking-wider text-slate-900">მე და მარკეტი</h4>
                   <p className="text-[11px] text-slate-500">შპს მედა მარკეტ</p>
+                  <p className="text-[10px] text-slate-400">Batumi, საქართველო</p>
                   <p className="text-[10px] text-slate-400">საიდენტ. კოდი: 405123456</p>
                 </div>
 

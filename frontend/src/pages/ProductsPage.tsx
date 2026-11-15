@@ -144,6 +144,7 @@ export default function ProductsPage() {
           minStockLevel: minStockVal,
         })
         setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+        window.dispatchEvent(new CustomEvent('medamarket:product-updated', { detail: updated }))
         toast.success('პროდუქტი წარმატებით განახლდა')
       } else {
         // Create
@@ -211,6 +212,7 @@ export default function ProductsPage() {
       setProducts((prev) =>
         prev.map((p) => (p.id === stockModalProduct.id ? res.product : p))
       )
+      window.dispatchEvent(new CustomEvent('medamarket:product-updated', { detail: res.product }))
       toast.success(`მარაგი გაიზარდა +${qty} ერთეულით`)
       setIsStockModalOpen(false)
     } catch (err: any) {

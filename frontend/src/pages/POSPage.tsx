@@ -109,6 +109,7 @@ export default function POSPage() {
     cart,
     addToCart,
     updateQuantity,
+    syncCartWithProducts,
     setItemDiscount,
     removeFromCart,
     clearCart,
@@ -187,7 +188,7 @@ export default function POSPage() {
       return
     }
 
-    updateQuantity(weightModalItem.productId, kg)
+    updateQuantity(weightModalItem.productId, kg, weightModalItem.stock)
     toast.success(`${weightModalItem.productName}: ${grams}გ (${kg} კგ)`)
     setWeightModalItem(null)
     setGramInput('')
@@ -236,8 +237,10 @@ export default function POSPage() {
         api.products.getAll(),
         api.products.getCategories(),
       ])
-      setProducts(Array.isArray(prodsData) ? prodsData : [])
+      const loadedProducts = Array.isArray(prodsData) ? prodsData : []
+      setProducts(loadedProducts)
       setCategories(Array.isArray(catsData) ? catsData : [])
+      syncCartWithProducts(loadedProducts)
     } catch (err) {
       console.error(err)
       toast.error('პროდუქტების ჩატვირთვა ვერ მოხერხდა')
@@ -248,6 +251,23 @@ export default function POSPage() {
 
   useEffect(() => {
     fetchData()
+
+    const handleFocus = () => {
+      fetchData()
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchData()
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   // Handle Barcode Scanned via USB HID Scanner Listener
@@ -513,7 +533,8 @@ export default function POSPage() {
                 ? Math.max(0, Math.round(basePrice * (1 - discountPct / 100) * 100) / 100)
                 : basePrice
             const itemTotal = (effectivePrice * item.quantity).toFixed(2)
-            const maxStock = item.product.stock
+            const catalogProduct = products.find((p) => p.id === item.product.id)
+            const maxStock = catalogProduct ? catalogProduct.stock : item.product.stock
 
             return (
               <div
@@ -600,7 +621,7 @@ export default function POSPage() {
                   <button
                     onClick={() => {
                       const step = item.quantity <= 1 ? 0.1 : 1
-                      updateQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100)
+                      updateQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100, maxStock)
                     }}
                     className="w-6 h-6 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-xs"
                   >
@@ -615,7 +636,7 @@ export default function POSPage() {
                     onChange={(e) => {
                       const val = parseFloat(e.target.value)
                       if (!isNaN(val) && val > 0) {
-                        updateQuantity(item.product.id, val)
+                        updateQuantity(item.product.id, val, maxStock)
                       }
                     }}
                     className="w-12 text-center text-xs font-bold bg-white border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
@@ -623,7 +644,7 @@ export default function POSPage() {
                   <button
                     onClick={() => {
                       const step = item.quantity < 1 ? 0.1 : 1
-                      updateQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100)
+                      updateQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100, maxStock)
                     }}
                     disabled={item.quantity >= maxStock}
                     className="w-6 h-6 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
@@ -792,8 +813,8 @@ export default function POSPage() {
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
             <div className="text-right hidden sm:block">
-              <span className="text-xs font-bold text-slate-700 block">MEDA MARKET #1</span>
-              <span className="text-[11px] text-slate-400">თბილისი, საქართველო</span>
+              <span className="text-xs font-bold text-slate-700 block">მე და მარკეტი #1</span>
+              <span className="text-[11px] text-slate-400">Batumi, საქართველო</span>
             </div>
           </div>
         </header>
@@ -1437,9 +1458,9 @@ export default function POSPage() {
               >
                 {/* Header */}
                 <div className="text-center border-b border-dashed border-slate-300 pb-3 mb-3">
-                  <h4 className="font-extrabold text-base tracking-wider text-slate-900">MEDA MARKET</h4>
+                  <h4 className="font-extrabold text-base tracking-wider text-slate-900">მე და მარკეტი</h4>
                   <p className="text-[11px] text-slate-500">შპს მედა მარკეტ</p>
-                  <p className="text-[10px] text-slate-400">თბილისი, საქართველო</p>
+                  <p className="text-[10px] text-slate-400">Batumi, საქართველო</p>
                   <p className="text-[10px] text-slate-400">საიდენტ. კოდი: 405123456</p>
                 </div>
 
