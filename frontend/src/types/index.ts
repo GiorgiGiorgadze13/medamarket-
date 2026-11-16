@@ -32,6 +32,7 @@ export interface Product {
   stock: number
   minStockLevel: number
   isActive: boolean
+  isWeighted?: boolean
   createdAt?: string
   updatedAt?: string
 }

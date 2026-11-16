@@ -71,7 +71,7 @@ export const getProductByBarcode = async (req: AuthRequest, res: Response): Prom
 
 export const createProduct = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, barcode, categoryId, purchasePrice, sellingPrice, stock, minStockLevel } = req.body
+    const { name, barcode, categoryId, purchasePrice, sellingPrice, stock, minStockLevel, isWeighted } = req.body
 
     if (!name || !barcode || !categoryId || purchasePrice === undefined || sellingPrice === undefined) {
       res.status(400).json({ error: 'ყველა სავალდებულო ველი უნდა იყოს შევსებული' })
@@ -93,6 +93,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
         sellingPrice: Number(sellingPrice),
         stock: Number(stock) || 0,
         minStockLevel: Number(minStockLevel) || 5,
+        isWeighted: Boolean(isWeighted),
       },
       include: { category: true },
     })
@@ -107,7 +108,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 export const updateProduct = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params
-    const { name, barcode, categoryId, purchasePrice, sellingPrice, stock, minStockLevel, isActive } = req.body
+    const { name, barcode, categoryId, purchasePrice, sellingPrice, stock, minStockLevel, isActive, isWeighted } = req.body
 
     if (barcode) {
       const existing = await prisma.product.findFirst({
@@ -130,6 +131,7 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
         ...(stock !== undefined && { stock: Number(stock) }),
         ...(minStockLevel !== undefined && { minStockLevel: Number(minStockLevel) }),
         ...(isActive !== undefined && { isActive }),
+        ...(isWeighted !== undefined && { isWeighted: Boolean(isWeighted) }),
       },
       include: { category: true },
     })

@@ -89,7 +89,7 @@ async function main() {
     { name: 'ჩაი შავი 100გ', barcode: '4860019710095', cat: 'სხვა', pp: 3.0, sp: 5.0, stock: 45, min: 10 },
     { name: 'მარილი 1კგ', barcode: '4860019710101', cat: 'სანელებლები', pp: 0.8, sp: 1.5, stock: 90, min: 20 },
     { name: 'ბრინჯი 1კგ', barcode: '4860019710118', cat: 'მარცვლეული და პარკოსნები', pp: 3.5, sp: 5.5, stock: 55, min: 15 },
-    { name: 'ბანანი 1კგ', barcode: '4860019710125', cat: 'ბოსტნეული და ხილი', pp: 2.0, sp: 3.5, stock: 60, min: 20 },
+    { name: 'ბანანი 1კგ', barcode: '4860019710125', cat: 'ბოსტნეული და ხილი', pp: 2.0, sp: 3.5, stock: 60, min: 20, isWeighted: true },
   ]
 
   for (const p of products) {
@@ -104,6 +104,7 @@ async function main() {
         sellingPrice: p.sp,
         stock: p.stock,
         minStockLevel: p.min,
+        isWeighted: Boolean((p as any).isWeighted),
       },
     })
   }

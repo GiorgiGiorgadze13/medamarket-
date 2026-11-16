@@ -152,6 +152,9 @@ export function useCart() {
       return false
     }
 
+    const isWeighted = Boolean(product.isWeighted)
+    const normalizedQty = isWeighted ? quantity : Math.max(1, Math.round(quantity))
+
     let success = true
 
     setCart((prevCart) => {
@@ -159,7 +162,9 @@ export function useCart() {
 
       if (existingIndex > -1) {
         const currentQty = prevCart[existingIndex].quantity
-        const newQty = Math.round((currentQty + quantity) * 1000) / 1000
+        const newQty = isWeighted
+          ? Math.round((currentQty + normalizedQty) * 1000) / 1000
+          : Math.round(currentQty + normalizedQty)
 
         if (newQty > product.stock) {
           toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock}!`)
@@ -175,13 +180,19 @@ export function useCart() {
         }
         return updated
       } else {
-        if (quantity > product.stock) {
+        if (normalizedQty > product.stock) {
           toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock}!`)
           success = false
           return prevCart
         }
 
-        return [...prevCart, { product: { ...product }, quantity: Math.round(quantity * 1000) / 1000 }]
+        return [
+          ...prevCart,
+          {
+            product: { ...product },
+            quantity: isWeighted ? Math.round(normalizedQty * 1000) / 1000 : Math.round(normalizedQty),
+          },
+        ]
       }
     })
 
@@ -195,17 +206,20 @@ export function useCart() {
         return
       }
 
-      const rounded = Math.round(newQuantity * 1000) / 1000
-
       setCart((prevCart) =>
         prevCart.map((item) => {
           if (item.product.id === productId) {
+            const isWeighted = Boolean(item.product.isWeighted)
+            const targetQty = isWeighted
+              ? Math.round(newQuantity * 1000) / 1000
+              : Math.max(1, Math.round(newQuantity))
+
             const effectiveMax =
               typeof maxStockOverride === 'number' && maxStockOverride >= 0
                 ? maxStockOverride
                 : item.product.stock
 
-            if (rounded > effectiveMax) {
+            if (targetQty > effectiveMax) {
               toast.error(`მაქსიმალური ხელმისაწვდომი მარაგი: ${effectiveMax}`)
               return {
                 ...item,
@@ -218,7 +232,7 @@ export function useCart() {
             }
             return {
               ...item,
-              quantity: rounded,
+              quantity: targetQty,
               product:
                 typeof maxStockOverride === 'number' && maxStockOverride >= 0
                   ? { ...item.product, stock: maxStockOverride }

@@ -176,6 +176,13 @@ export default function POSPage() {
 
   const handleApplyWeight = () => {
     if (!weightModalItem) return
+    const targetProduct = products.find((p) => p.id === weightModalItem.productId)
+    if (targetProduct && !targetProduct.isWeighted) {
+      toast.error(`"${weightModalItem.productName}" არ არის წონითი პროდუქტი!`)
+      setWeightModalItem(null)
+      return
+    }
+
     const grams = parseFloat(gramInput)
     if (isNaN(grams) || grams <= 0) {
       toast.error('გთხოვთ მიუთითოთ სწორი წონა გრამებში')
@@ -535,6 +542,7 @@ export default function POSPage() {
             const itemTotal = (effectivePrice * item.quantity).toFixed(2)
             const catalogProduct = products.find((p) => p.id === item.product.id)
             const maxStock = catalogProduct ? catalogProduct.stock : item.product.stock
+            const isWeighted = Boolean(item.product.isWeighted ?? catalogProduct?.isWeighted)
 
             return (
               <div
@@ -546,6 +554,11 @@ export default function POSPage() {
                     <p className="text-xs font-semibold text-slate-800 truncate leading-snug">
                       {item.product.name}
                     </p>
+                    {isWeighted && (
+                      <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded text-[10px] font-bold inline-flex items-center gap-0.5">
+                        <Scale className="w-2.5 h-2.5" /> კგ
+                      </span>
+                    )}
                     {discountPct > 0 && (
                       <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded text-[10px] font-black inline-flex items-center gap-0.5 shadow-xs">
                         <Percent className="w-2.5 h-2.5" /> -{discountPct}%
@@ -567,7 +580,7 @@ export default function POSPage() {
                         {basePrice.toFixed(2)} ₾
                       </span>
                     )}
-                    {item.quantity < 1 || !Number.isInteger(item.quantity) ? (
+                    {isWeighted && (item.quantity < 1 || !Number.isInteger(item.quantity)) ? (
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">
                         {item.quantity} კგ ({Math.round(item.quantity * 1000)}გ)
                       </span>
@@ -576,23 +589,25 @@ export default function POSPage() {
                         ({item.product.barcode})
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openWeightModal({
-                          productId: item.product.id,
-                          productName: item.product.name,
-                          unitPrice: effectivePrice,
-                          currentQty: item.quantity,
-                          stock: maxStock,
-                        })
-                      }
-                      title="წონის შეყვანა (გრამი / კგ)"
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded transition-colors"
-                    >
-                      <Scale className="w-3 h-3 text-emerald-600" />
-                      <span>წონა</span>
-                    </button>
+                    {isWeighted && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openWeightModal({
+                            productId: item.product.id,
+                            productName: item.product.name,
+                            unitPrice: effectivePrice,
+                            currentQty: item.quantity,
+                            stock: maxStock,
+                          })
+                        }
+                        title="წონის შეყვანა (გრამი / კგ)"
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition-colors"
+                      >
+                        <Scale className="w-3 h-3 text-blue-600" />
+                        <span>წონა</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() =>
@@ -620,8 +635,12 @@ export default function POSPage() {
                 <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
                   <button
                     onClick={() => {
-                      const step = item.quantity <= 1 ? 0.1 : 1
-                      updateQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100, maxStock)
+                      if (isWeighted) {
+                        const step = item.quantity <= 1 ? 0.1 : 1
+                        updateQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100, maxStock)
+                      } else {
+                        updateQuantity(item.product.id, Math.max(1, Math.round(item.quantity - 1)), maxStock)
+                      }
                     }}
                     className="w-6 h-6 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-xs"
                   >
@@ -629,13 +648,14 @@ export default function POSPage() {
                   </button>
                   <input
                     type="number"
-                    step="any"
-                    min="0.001"
+                    step={isWeighted ? 'any' : '1'}
+                    min={isWeighted ? '0.001' : '1'}
                     max={maxStock}
                     value={item.quantity}
                     onChange={(e) => {
-                      const val = parseFloat(e.target.value)
-                      if (!isNaN(val) && val > 0) {
+                      const rawVal = parseFloat(e.target.value)
+                      if (!isNaN(rawVal) && rawVal > 0) {
+                        const val = isWeighted ? rawVal : Math.max(1, Math.round(rawVal))
                         updateQuantity(item.product.id, val, maxStock)
                       }
                     }}
@@ -643,8 +663,12 @@ export default function POSPage() {
                   />
                   <button
                     onClick={() => {
-                      const step = item.quantity < 1 ? 0.1 : 1
-                      updateQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100, maxStock)
+                      if (isWeighted) {
+                        const step = item.quantity < 1 ? 0.1 : 1
+                        updateQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100, maxStock)
+                      } else {
+                        updateQuantity(item.product.id, Math.round(item.quantity + 1), maxStock)
+                      }
                     }}
                     disabled={item.quantity >= maxStock}
                     className="w-6 h-6 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
@@ -919,27 +943,29 @@ export default function POSPage() {
                         {product.category?.name || 'სხვა'}
                       </span>
                       <div className="flex items-center gap-1">
-                        {/* Weight action */}
-                        <span
-                          role="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (cartQty === 0) {
-                              addToCart(product, 0.5)
-                            }
-                            openWeightModal({
-                              productId: product.id,
-                              productName: product.name,
-                              unitPrice: effectivePrice,
-                              currentQty: cartQty > 0 ? cartQty : 0.5,
-                              stock: product.stock,
-                            })
-                          }}
-                          title="წონის არჩევა (გრამი / კგ)"
-                          className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors cursor-pointer"
-                        >
-                          <Scale className="w-3.5 h-3.5" />
-                        </span>
+                        {/* Weight action - ONLY for weighted products */}
+                        {product.isWeighted && (
+                          <span
+                            role="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (cartQty === 0) {
+                                addToCart(product, 0.5)
+                              }
+                              openWeightModal({
+                                productId: product.id,
+                                productName: product.name,
+                                unitPrice: effectivePrice,
+                                currentQty: cartQty > 0 ? cartQty : 0.5,
+                                stock: product.stock,
+                              })
+                            }}
+                            title="წონის არჩევა (გრამი / კგ)"
+                            className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                          >
+                            <Scale className="w-3.5 h-3.5" />
+                          </span>
+                        )}
 
                         {/* Discount action */}
                         <span
@@ -1002,12 +1028,16 @@ export default function POSPage() {
                             <span className="text-rose-600 font-black">
                               {effectivePrice.toFixed(2)}
                             </span>
-                            <span className="text-xs font-bold text-rose-600">₾</span>
+                            <span className="text-xs font-bold text-rose-600">
+                              ₾{product.isWeighted ? '/კგ' : ''}
+                            </span>
                           </div>
                         ) : (
                           <>
                             {basePrice.toFixed(2)}{' '}
-                            <span className="text-xs font-bold text-emerald-600">₾</span>
+                            <span className="text-xs font-bold text-emerald-600">
+                              ₾{product.isWeighted ? '/კგ' : ''}
+                            </span>
                           </>
                         )}
                       </div>
@@ -1019,12 +1049,12 @@ export default function POSPage() {
                         ) : isLowStock ? (
                           <span className="text-[9px] sm:text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
                             {Number.isInteger(product.stock) ? product.stock : product.stock.toFixed(2)}{' '}
-                            {product.stock <= 5 && !Number.isInteger(product.stock) ? 'კგ' : 'ც'}
+                            {product.isWeighted ? 'კგ' : 'ც'}
                           </span>
                         ) : (
                           <span className="text-[9px] sm:text-[10px] text-slate-400">
                             {Number.isInteger(product.stock) ? product.stock : product.stock.toFixed(2)}{' '}
-                            {!Number.isInteger(product.stock) ? 'კგ' : 'ც'}
+                            {product.isWeighted ? 'კგ' : 'ც'}
                           </span>
                         )}
                       </div>

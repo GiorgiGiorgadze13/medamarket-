@@ -18,6 +18,7 @@ import {
   DollarSign,
   Boxes,
   RefreshCw,
+  Scale,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -79,6 +80,7 @@ export default function ProductsPage() {
   const [formSellingPrice, setFormSellingPrice] = useState<string>('')
   const [formStock, setFormStock] = useState<string>('0')
   const [formMinStock, setFormMinStock] = useState<string>('5')
+  const [formIsWeighted, setFormIsWeighted] = useState<boolean>(false)
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   // Load Data
@@ -121,6 +123,7 @@ export default function ProductsPage() {
     setFormSellingPrice('')
     setFormStock('0')
     setFormMinStock('5')
+    setFormIsWeighted(false)
     setIsProductModalOpen(true)
   }
 
@@ -134,6 +137,7 @@ export default function ProductsPage() {
     setFormSellingPrice(product.sellingPrice.toString())
     setFormStock(product.stock.toString())
     setFormMinStock(product.minStockLevel.toString())
+    setFormIsWeighted(Boolean(product.isWeighted))
     setIsProductModalOpen(true)
   }
 
@@ -167,6 +171,7 @@ export default function ProductsPage() {
           sellingPrice: selling,
           stock: stockVal,
           minStockLevel: minStockVal,
+          isWeighted: formIsWeighted,
         })
         setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
         window.dispatchEvent(new CustomEvent('medamarket:product-updated', { detail: updated }))
@@ -181,6 +186,7 @@ export default function ProductsPage() {
           sellingPrice: selling,
           stock: stockVal,
           minStockLevel: minStockVal,
+          isWeighted: formIsWeighted,
         })
         setProducts((prev) => [created, ...prev])
         toast.success('ახალი პროდუქტი წარმატებით დაემატა')
@@ -540,7 +546,18 @@ export default function ProductsPage() {
 
                       {/* Name & Category */}
                       <td className="py-3 px-4">
-                        <p className="font-bold text-slate-900 line-clamp-1">{p.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-bold text-slate-900 line-clamp-1">{p.name}</p>
+                          {p.isWeighted ? (
+                            <span className="text-[10px] text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded font-bold inline-flex items-center gap-0.5">
+                              <Scale className="w-2.5 h-2.5" /> წონითი
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-medium">
+                              ცალობით
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold inline-block mt-0.5">
                           {p.category?.name || 'სხვა'}
                         </span>
@@ -803,6 +820,56 @@ export default function ProductsPage() {
                     onChange={(e) => setFormMinStock(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Sold by Weight Toggle */}
+              <div
+                onClick={() => setFormIsWeighted(!formIsWeighted)}
+                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  formIsWeighted
+                    ? 'border-emerald-500 bg-emerald-50/80'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100/80'
+                }`}
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                      formIsWeighted ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <Scale className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs block leading-tight">
+                      ეს პროდუქტი წონით გაიყიდება? (კგ / გრამობით)
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                      {formIsWeighted
+                        ? '✅ ჩართულია: POS-ში ხელმისაწვდომი იქნება წონის ღილაკი და გრამების კალკულატორი.'
+                        : '❌ გამორთულია (სნიკერსი, ბაუნტი, სასმელი...): პროდუქტი გაიყიდება მხოლოდ მთელი ცალობით (1, 2, 3...).'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative inline-flex items-center shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={formIsWeighted}
+                    onChange={(e) => setFormIsWeighted(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`w-11 h-6 rounded-full transition-colors relative ${
+                      formIsWeighted ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 bg-white rounded-full transition-transform absolute top-0.5 left-0.5 shadow-xs ${
+                        formIsWeighted ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
                 </div>
               </div>
 

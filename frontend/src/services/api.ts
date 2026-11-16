@@ -108,6 +108,7 @@ export const api = {
       sellingPrice: number
       stock?: number
       minStockLevel?: number
+      isWeighted?: boolean
     }) => {
       const res = await apiClient.post<{ product: Product }>('/products', data)
       return res.data.product
@@ -123,6 +124,7 @@ export const api = {
         stock: number
         minStockLevel: number
         isActive: boolean
+        isWeighted: boolean
       }>
     ) => {
       const res = await apiClient.put<{ product: Product }>(`/products/${id}`, data)
