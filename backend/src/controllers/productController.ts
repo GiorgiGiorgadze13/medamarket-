@@ -155,9 +155,35 @@ export const deleteProduct = async (req: AuthRequest, res: Response): Promise<vo
   }
 }
 
+export const DEFAULT_SUPERMARKET_CATEGORIES = [
+  'ხილ-ბოსტნეული',
+  'სასმელი',
+  'ბაკალეა',
+  'ჩაი, ყავა და კაკაო',
+  'პურ-ფუნთუშეული',
+  'ტკბილეული და ნაყინი',
+  'სნექი',
+  'კონსერვი',
+  'სოსისი და ძეხვეული',
+  'კვერცხი და რძის ნაწარმი',
+  'ხორცი და ნახევარფაბრიკატები',
+  'სახლის მოვლა და ჰიგიენა',
+  'ზღვის პროდუქტები',
+  'ცხოველთა კვება',
+  'სათამაშოები',
+  'სიგარეტი და თამბაქო',
+  'ტკბილეული',
+  'მარცვლეული',
+  'ხორცეული',
+  'რძის ნაწარმი',
+  'სანელებლები და სოუსები',
+  'ბავშვის მოვლა',
+  'სხვა',
+]
+
 export const getCategories = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const categories = await prisma.category.findMany({
+    let categories = await prisma.category.findMany({
       orderBy: { name: 'asc' },
       include: {
         _count: {
@@ -165,6 +191,22 @@ export const getCategories = async (_req: AuthRequest, res: Response): Promise<v
         },
       },
     })
+
+    if (categories.length === 0) {
+      await prisma.category.createMany({
+        data: DEFAULT_SUPERMARKET_CATEGORIES.map((name) => ({ name })),
+        skipDuplicates: true,
+      })
+      categories = await prisma.category.findMany({
+        orderBy: { name: 'asc' },
+        include: {
+          _count: {
+            select: { products: { where: { isActive: true } } },
+          },
+        },
+      })
+    }
+
     res.json({ categories })
   } catch (err) {
     console.error('getCategories error:', err)

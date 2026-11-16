@@ -21,6 +21,31 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+const STANDARD_SUPERMARKET_CATEGORIES = [
+  { name: 'ხილ-ბოსტნეული', icon: '🍏' },
+  { name: 'სასმელი', icon: '🥤' },
+  { name: 'ბაკალეა', icon: '🌾' },
+  { name: 'ჩაი, ყავა და კაკაო', icon: '☕' },
+  { name: 'პურ-ფუნთუშეული', icon: '🍞' },
+  { name: 'ტკბილეული და ნაყინი', icon: '🍫' },
+  { name: 'ტკბილეული', icon: '🍬' },
+  { name: 'მარცვლეული', icon: '🍚' },
+  { name: 'სნექი', icon: '🍿' },
+  { name: 'კონსერვი', icon: '🥫' },
+  { name: 'სოსისი და ძეხვეული', icon: '🌭' },
+  { name: 'ხორცეული', icon: '🍖' },
+  { name: 'კვერცხი და რძის ნაწარმი', icon: '🧀' },
+  { name: 'რძის ნაწარმი', icon: '🥛' },
+  { name: 'ხორცი და ნახევარფაბრიკატები', icon: '🥩' },
+  { name: 'ზღვის პროდუქტები', icon: '🐟' },
+  { name: 'სახლის მოვლა და ჰიგიენა', icon: '🧼' },
+  { name: 'ცხოველთა კვება', icon: '🐱' },
+  { name: 'სათამაშოები', icon: '🧸' },
+  { name: 'სიგარეტი და თამბაქო', icon: '🚬' },
+  { name: 'სანელებლები და სოუსები', icon: '🧂' },
+  { name: 'ბავშვის მოვლა', icon: '👶' },
+]
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -234,7 +259,29 @@ export default function ProductsPage() {
       setFormCategoryId(cat.id)
       setNewCategoryName('')
       setIsCategoryModalOpen(false)
-      toast.success('კატეგორია დაემატა')
+      toast.success(`კატეგორია "${cat.name}" დაემატა`)
+    } catch (err: any) {
+      toast.error(getErrorMessage(err, 'კატეგორიის დამატება ვერ მოხერხდა'))
+    }
+  }
+
+  // Quick 1-click preset category selection or addition
+  const handleQuickAddPreset = async (presetName: string) => {
+    const existing = categories.find((c) => c.name.toLowerCase() === presetName.toLowerCase())
+    if (existing) {
+      setFormCategoryId(existing.id)
+      toast.success(`არჩეულია: ${existing.name}`)
+      setIsCategoryModalOpen(false)
+      return
+    }
+
+    try {
+      const cat = await api.products.createCategory(presetName)
+      setCategories((prev) => [...prev, cat])
+      setFormCategoryId(cat.id)
+      setNewCategoryName('')
+      setIsCategoryModalOpen(false)
+      toast.success(`კატეგორია "${presetName}" დაემატა და არჩეულია`)
     } catch (err: any) {
       toast.error(getErrorMessage(err, 'კატეგორიის დამატება ვერ მოხერხდა'))
     }
@@ -639,14 +686,24 @@ export default function ProductsPage() {
 
               {/* Category */}
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  კატეგორია *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 uppercase">
+                    კატეგორია *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(true)}
+                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 hover:underline"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>ახალი კატეგორია</span>
+                  </button>
+                </div>
                 <select
                   required
                   value={formCategoryId}
                   onChange={(e) => setFormCategoryId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium text-xs sm:text-sm bg-white"
                 >
                   <option value="" disabled>
                     აირჩიეთ კატეგორია
@@ -657,6 +714,34 @@ export default function ProductsPage() {
                     </option>
                   ))}
                 </select>
+
+                {/* Quick Category Selection Chips */}
+                {categories.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      სწრაფი არჩევანი (დააჭირეთ სასურველ კატეგორიას):
+                    </span>
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
+                      {categories.map((c) => {
+                        const isSelected = formCategoryId === c.id
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setFormCategoryId(c.id)}
+                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all ${
+                              isSelected
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {c.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Price Row */}
@@ -834,50 +919,105 @@ export default function ProductsPage() {
 
       {/* CREATE CATEGORY MODAL */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
-              <h3 className="text-sm font-bold">ახალი კატეგორიის დამატება</h3>
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm sm:text-base font-bold">ახალი კატეგორიის დამატება</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  აირჩიეთ მზა სიიდან 1-დაჭერით ან ჩაწერეთ ახალი კატეგორია
+                </p>
+              </div>
               <button
                 onClick={() => setIsCategoryModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCategory} className="p-5 space-y-3 text-xs">
+            <div className="p-4 sm:p-6 space-y-4 text-xs">
+              {/* Preset Supermarket Categories Grid */}
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  კატეგორიის სახელი *
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="მაგ: ტკბილეული & შოკოლადი"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
+                <span className="font-bold text-slate-700 uppercase text-[11px] block mb-2">
+                  🏪 მაღაზიის მზა კატეგორიები (დააჭირეთ სწრაფად ასარჩევად):
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-56 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
+                  {STANDARD_SUPERMARKET_CATEGORIES.map((preset) => {
+                    const existingCat = categories.find(
+                      (c) => c.name.trim().toLowerCase() === preset.name.trim().toLowerCase()
+                    )
+                    const isAdded = !!existingCat
+                    const isCurrentlySelected = existingCat && formCategoryId === existingCat.id
+
+                    return (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => handleQuickAddPreset(preset.name)}
+                        className={`p-2 rounded-xl text-left flex items-center justify-between gap-1 transition-all text-[11px] ${
+                          isCurrentlySelected
+                            ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                            : isAdded
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 font-semibold'
+                            : 'bg-white text-slate-700 border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50'
+                        }`}
+                        title={
+                          isAdded
+                            ? 'უკვე არსებობს (დააჭირეთ პირდაპირ ასარჩევად)'
+                            : 'დააჭირეთ მყისიერად დასამატებლად'
+                        }
+                      >
+                        <span className="truncate flex items-center gap-1">
+                          <span>{preset.icon}</span>
+                          <span className="truncate">{preset.name}</span>
+                        </span>
+                        {isCurrentlySelected ? (
+                          <span className="text-white font-black text-[10px] shrink-0">✓</span>
+                        ) : isAdded ? (
+                          <span className="text-emerald-600 font-bold text-[10px] shrink-0">✓</span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px] font-bold shrink-0">+</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-3 py-2 border rounded-xl text-slate-600"
-                >
-                  გაუქმება
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
-                >
-                  დამატება
-                </button>
-              </div>
-            </form>
+              {/* Manual Category Form */}
+              <form onSubmit={handleCreateCategory} className="space-y-3 pt-3 border-t border-slate-100">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">
+                    ან ჩაწერეთ განსხვავებული კატეგორიის სახელი:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="მაგ: სათამაშოები, სიგარეტი, ტკბილეული..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-xs sm:text-sm font-medium"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryModalOpen(false)}
+                    className="px-3 py-2 border border-slate-300 hover:bg-slate-50 rounded-xl text-slate-600 font-semibold"
+                  >
+                    დახურვა
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs"
+                  >
+                    დამატება
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
