@@ -237,8 +237,10 @@ export default function POSPage() {
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Load products and categories
-  const fetchData = async () => {
-    setIsLoading(true)
+  const fetchData = async (isSilent = false) => {
+    if (!isSilent) {
+      setIsLoading(true)
+    }
     try {
       const [prodsData, catsData] = await Promise.all([
         api.products.getAll(),
@@ -250,21 +252,25 @@ export default function POSPage() {
       syncCartWithProducts(loadedProducts)
     } catch (err) {
       console.error(err)
-      toast.error('პროდუქტების ჩატვირთვა ვერ მოხერხდა')
+      if (!isSilent) {
+        toast.error('პროდუქტების ჩატვირთვა ვერ მოხერხდა')
+      }
     } finally {
-      setIsLoading(false)
+      if (!isSilent) {
+        setIsLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    fetchData()
+    fetchData(false)
 
     const handleFocus = () => {
-      fetchData()
+      fetchData(true)
     }
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchData()
+        fetchData(true)
       }
     }
 
@@ -830,7 +836,7 @@ export default function POSPage() {
 
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchData}
+              onClick={() => fetchData(false)}
               title="მონაცემების განახლება"
               className="p-1.5 sm:p-2 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
@@ -854,7 +860,54 @@ export default function POSPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="მოძებნეთ დასახელებით ან შტრიხ-კოდით..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const trimmed = searchQuery.trim()
+                  if (!trimmed) return
+
+                  // 1. Check exact barcode match first
+                  const barcodeMatch = products.find(
+                    (p) => p.barcode.toLowerCase() === trimmed.toLowerCase()
+                  )
+                  if (barcodeMatch) {
+                    if (barcodeMatch.stock <= 0) {
+                      playBeep('error')
+                      toast.error(`"${barcodeMatch.name}" მარაგში აღარ არის!`)
+                      return
+                    }
+                    const added = addToCart(barcodeMatch, 1)
+                    if (added) {
+                      playBeep('success')
+                      toast.success(`+ ${barcodeMatch.name}`)
+                      setSearchQuery('')
+                    }
+                    return
+                  }
+
+                  // 2. If filteredProducts has matches, add the top match
+                  if (filteredProducts.length > 0) {
+                    const topMatch = filteredProducts[0]
+                    if (topMatch.stock <= 0) {
+                      playBeep('error')
+                      toast.error(`"${topMatch.name}" მარაგში აღარ არის!`)
+                      return
+                    }
+                    const added = addToCart(topMatch, 1)
+                    if (added) {
+                      playBeep('success')
+                      toast.success(`+ ${topMatch.name}`)
+                      setSearchQuery('')
+                    }
+                    return
+                  }
+
+                  // 3. Fallback to API barcode search
+                  handleBarcodeScanned(trimmed)
+                  setSearchQuery('')
+                }
+              }}
+              placeholder="მოძებნეთ დასახელებით ან შტრიხ-კოდით (Enter)..."
               className="w-full pl-10 pr-9 py-2 sm:py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
             />
             {searchQuery && (
@@ -926,10 +979,14 @@ export default function POSPage() {
                 return (
                   <button
                     key={product.id}
+                    type="button"
                     disabled={isOutOfStock}
                     onClick={() => {
                       const added = addToCart(product, 1)
-                      if (added) playBeep('success')
+                      if (added) {
+                        playBeep('success')
+                        toast.success(`+ ${product.name}`, { duration: 1500, id: `pos_add_${product.id}` })
+                      }
                     }}
                     className={`relative text-left bg-white rounded-xl p-2.5 sm:p-3 border transition-all duration-150 flex flex-col justify-between group ${
                       isOutOfStock

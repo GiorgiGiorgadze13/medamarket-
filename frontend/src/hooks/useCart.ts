@@ -6,7 +6,12 @@ const CART_STORAGE_KEY = 'medamarket_pos_cart_v1'
 const DISCOUNT_STORAGE_KEY = 'medamarket_pos_discount_v1'
 
 export function getItemEffectivePrice(product: Product, discountPercent?: number): number {
-  const base = Number(product.sellingPrice) || 0
+  if (!product) return 0
+  const rawPrice =
+    product.sellingPrice !== undefined && product.sellingPrice !== null
+      ? product.sellingPrice
+      : (product as any)?.price
+  const base = Number(rawPrice) || 0
   const pct = Number(discountPercent) || 0
   if (pct <= 0) return base
   const discounted = base * (1 - pct / 100)
@@ -20,16 +25,26 @@ function loadInitialCart(): CartItem[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     // Sanitize and validate loaded cart items
-    return parsed.filter((item): item is CartItem => {
-      return (
-        item &&
-        item.product &&
-        typeof item.product.id === 'string' &&
-        typeof item.product.name === 'string' &&
-        typeof item.quantity === 'number' &&
-        item.quantity > 0
-      )
-    })
+    return parsed
+      .filter((item): item is CartItem => {
+        return (
+          item &&
+          item.product &&
+          typeof item.product.id === 'string' &&
+          typeof item.product.name === 'string' &&
+          typeof item.quantity === 'number' &&
+          item.quantity > 0
+        )
+      })
+      .map((item) => ({
+        ...item,
+        product: {
+          ...item.product,
+          sellingPrice: Number(item.product.sellingPrice ?? (item.product as any).price ?? 0),
+          stock: Number(item.product.stock ?? 0),
+          isWeighted: Boolean(item.product.isWeighted),
+        },
+      }))
   } catch (err) {
     console.error('Failed to parse saved cart from localStorage:', err)
     return []
@@ -69,22 +84,35 @@ export function useCart() {
     if (!Array.isArray(latestProducts) || latestProducts.length === 0) return
 
     setCart((prevCart) => {
+      if (prevCart.length === 0) return prevCart
+
       let changed = false
       const updated = prevCart.map((item) => {
         const fresh = latestProducts.find((p) => p.id === item.product.id)
         if (!fresh) return item
 
+        const freshPrice = Number(fresh.sellingPrice ?? (fresh as any).price ?? 0)
+        const freshStock = Number(fresh.stock ?? 0)
+        const itemPrice = Number(item.product.sellingPrice ?? (item.product as any).price ?? 0)
+        const itemStock = Number(item.product.stock ?? 0)
+
         if (
-          item.product.stock !== fresh.stock ||
-          item.product.sellingPrice !== fresh.sellingPrice ||
+          itemStock !== freshStock ||
+          itemPrice !== freshPrice ||
           item.product.name !== fresh.name ||
           item.product.isActive !== fresh.isActive ||
-          item.product.barcode !== fresh.barcode
+          item.product.barcode !== fresh.barcode ||
+          Boolean(item.product.isWeighted) !== Boolean(fresh.isWeighted)
         ) {
           changed = true
           return {
             ...item,
-            product: { ...fresh },
+            product: {
+              ...fresh,
+              sellingPrice: freshPrice,
+              stock: freshStock,
+              isWeighted: Boolean(fresh.isWeighted),
+            },
           }
         }
         return item
@@ -147,7 +175,8 @@ export function useCart() {
   }, [])
 
   const addToCart = useCallback((product: Product, quantity: number = 1): boolean => {
-    if (product.stock <= 0) {
+    const stock = Number(product.stock) || 0
+    if (stock <= 0) {
       toast.error(`"${product.name}" მარაგში აღარ არის!`)
       return false
     }
@@ -155,10 +184,17 @@ export function useCart() {
     const isWeighted = Boolean(product.isWeighted)
     const normalizedQty = isWeighted ? quantity : Math.max(1, Math.round(quantity))
 
-    let success = true
+    const safeProduct: Product = {
+      ...product,
+      sellingPrice: Number(product.sellingPrice ?? (product as any).price ?? 0),
+      stock,
+      isWeighted,
+    }
+
+    let canAdd = true
 
     setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((item) => item.product.id === product.id)
+      const existingIndex = prevCart.findIndex((item) => item.product.id === safeProduct.id)
 
       if (existingIndex > -1) {
         const currentQty = prevCart[existingIndex].quantity
@@ -166,9 +202,9 @@ export function useCart() {
           ? Math.round((currentQty + normalizedQty) * 1000) / 1000
           : Math.round(currentQty + normalizedQty)
 
-        if (newQty > product.stock) {
-          toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock}!`)
-          success = false
+        if (newQty > stock) {
+          toast.error(`მარაგში დარჩენილია მხოლოდ ${stock}!`)
+          canAdd = false
           return prevCart
         }
 
@@ -176,27 +212,27 @@ export function useCart() {
         updated[existingIndex] = {
           ...updated[existingIndex],
           quantity: newQty,
-          product: { ...product }, // Keep latest product snapshot with fresh stock and price
+          product: safeProduct, // Keep latest product snapshot with fresh stock and price
         }
         return updated
       } else {
-        if (normalizedQty > product.stock) {
-          toast.error(`მარაგში დარჩენილია მხოლოდ ${product.stock}!`)
-          success = false
+        if (normalizedQty > stock) {
+          toast.error(`მარაგში დარჩენილია მხოლოდ ${stock}!`)
+          canAdd = false
           return prevCart
         }
 
         return [
           ...prevCart,
           {
-            product: { ...product },
+            product: safeProduct,
             quantity: isWeighted ? Math.round(normalizedQty * 1000) / 1000 : Math.round(normalizedQty),
           },
         ]
       }
     })
 
-    return success
+    return canAdd
   }, [])
 
   const updateQuantity = useCallback(
@@ -277,7 +313,11 @@ export function useCart() {
   // Original subtotal before any discounts
   const originalSubtotal = useMemo(() => {
     return cart.reduce((sum, item) => {
-      const price = Number(item.product.sellingPrice) || 0
+      const rawPrice =
+        item.product?.sellingPrice !== undefined && item.product?.sellingPrice !== null
+          ? item.product.sellingPrice
+          : (item.product as any)?.price
+      const price = Number(rawPrice) || 0
       return sum + Math.round(price * item.quantity * 100) / 100
     }, 0)
   }, [cart])
