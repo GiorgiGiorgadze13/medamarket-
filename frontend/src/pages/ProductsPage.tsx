@@ -646,246 +646,249 @@ export default function ProductsPage() {
 
       {/* CREATE / EDIT PRODUCT MODAL */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
-              <h3 className="text-base font-bold flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
+            {/* Header */}
+            <div className="bg-slate-900 text-white px-5 py-3.5 sm:py-4 flex items-center justify-between shrink-0">
+              <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
                 <Package className="w-5 h-5 text-emerald-400" />
                 <span>{editingProduct ? 'პროდუქტის რედაქტირება' : 'ახალი პროდუქტის დამატება'}</span>
               </h3>
               <button
                 onClick={() => setIsProductModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-6 space-y-4 text-xs">
-              {/* Product Name */}
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  პროდუქტის დასახელება *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="მაგ: ბორჯომი 0.5ლ მინა"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Barcode with Auto-generate */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-slate-700 uppercase">
-                    შტრიხ-კოდი (Barcode) *
+            <form onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+              <div className="p-4 sm:p-5 space-y-3 sm:space-y-3.5 overflow-y-auto flex-1 scrollbar-thin">
+                {/* Product Name */}
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">
+                    პროდუქტის დასახელება *
                   </label>
-                  <button
-                    type="button"
-                    onClick={handleGenerateBarcode}
-                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
-                  >
-                    <span>გენერირება</span>
-                  </button>
+                  <input
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="მაგ: ბორჯომი 0.5ლ მინა"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
                 </div>
-                <input
-                  type="text"
-                  required
-                  value={formBarcode}
-                  onChange={(e) => setFormBarcode(e.target.value)}
-                  placeholder="მაგ: 4860019001344"
-                  className="w-full px-3 py-2 font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
 
-              {/* Category */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block font-bold text-slate-700 uppercase">
-                    კატეგორია *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsCategoryModalOpen(true)}
-                    className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 hover:underline"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>ახალი კატეგორია</span>
-                  </button>
-                </div>
-                <select
-                  required
-                  value={formCategoryId}
-                  onChange={(e) => setFormCategoryId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium text-xs sm:text-sm bg-white"
-                >
-                  <option value="" disabled>
-                    აირჩიეთ კატეგორია
-                  </option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Quick Category Selection Chips */}
-                {categories.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      სწრაფი არჩევანი (დააჭირეთ სასურველ კატეგორიას):
-                    </span>
-                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
-                      {categories.map((c) => {
-                        const isSelected = formCategoryId === c.id
-                        return (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => setFormCategoryId(c.id)}
-                            className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all ${
-                              isSelected
-                                ? 'bg-emerald-600 text-white shadow-xs'
-                                : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            {c.name}
-                          </button>
-                        )
-                      })}
-                    </div>
+                {/* Barcode with Auto-generate */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-700 uppercase">
+                      შტრიხ-კოდი (Barcode) *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleGenerateBarcode}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                    >
+                      <span>გენერირება</span>
+                    </button>
                   </div>
-                )}
-              </div>
-
-              {/* Price Row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">
-                    შესასყიდი ფასი (₾) *
-                  </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
                     required
-                    value={formPurchasePrice}
-                    onChange={(e) => setFormPurchasePrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    value={formBarcode}
+                    onChange={(e) => setFormBarcode(e.target.value)}
+                    placeholder="მაგ: 4860019001344"
+                    className="w-full px-3 py-2 font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
+
+                {/* Category */}
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">
-                    გასაყიდი ფასი (₾) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-bold text-slate-700 uppercase">
+                      კატეგორია *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryModalOpen(true)}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 hover:underline"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>ახალი კატეგორია</span>
+                    </button>
+                  </div>
+                  <select
                     required
-                    value={formSellingPrice}
-                    onChange={(e) => setFormSellingPrice(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 font-bold text-emerald-700 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Stock Row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">
-                    მიმდინარე ნაშთი
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formStock}
-                    onChange={(e) => setFormStock(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">
-                    მინიმალური მარაგი
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formMinStock}
-                    onChange={(e) => setFormMinStock(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Sold by Weight Toggle */}
-              <div
-                onClick={() => setFormIsWeighted(!formIsWeighted)}
-                className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                  formIsWeighted
-                    ? 'border-emerald-500 bg-emerald-50/80'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100/80'
-                }`}
-              >
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                      formIsWeighted ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-200 text-slate-600'
-                    }`}
+                    value={formCategoryId}
+                    onChange={(e) => setFormCategoryId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium text-xs sm:text-sm bg-white"
                   >
-                    <Scale className="w-4 h-4" />
+                    <option value="" disabled>
+                      აირჩიეთ კატეგორია
+                    </option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Quick Category Selection Chips */}
+                  {categories.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        სწრაფი არჩევანი (დააჭირეთ სასურველ კატეგორიას):
+                      </span>
+                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
+                        {categories.map((c) => {
+                          const isSelected = formCategoryId === c.id
+                          return (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => setFormCategoryId(c.id)}
+                              className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all ${
+                                isSelected
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {c.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Price Row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">
+                      შესასყიდი ფასი (₾) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={formPurchasePrice}
+                      onChange={(e) => setFormPurchasePrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
                   </div>
                   <div>
-                    <span className="font-bold text-slate-800 text-xs block leading-tight">
-                      ეს პროდუქტი წონით გაიყიდება? (კგ / გრამობით)
-                    </span>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                      {formIsWeighted
-                        ? '✅ ჩართულია: POS-ში ხელმისაწვდომი იქნება წონის ღილაკი და გრამების კალკულატორი.'
-                        : '❌ გამორთულია (სნიკერსი, ბაუნტი, სასმელი...): პროდუქტი გაიყიდება მხოლოდ მთელი ცალობით (1, 2, 3...).'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative inline-flex items-center shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={formIsWeighted}
-                    onChange={(e) => setFormIsWeighted(e.target.checked)}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`w-11 h-6 rounded-full transition-colors relative ${
-                      formIsWeighted ? 'bg-emerald-600' : 'bg-slate-300'
-                    }`}
-                  >
-                    <span
-                      className={`block w-5 h-5 bg-white rounded-full transition-transform absolute top-0.5 left-0.5 shadow-xs ${
-                        formIsWeighted ? 'translate-x-5' : 'translate-x-0'
-                      }`}
+                    <label className="block font-bold text-slate-700 uppercase mb-1">
+                      გასაყიდი ფასი (₾) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={formSellingPrice}
+                      onChange={(e) => setFormSellingPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 font-bold text-emerald-700 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     />
                   </div>
                 </div>
+
+                {/* Stock Row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">
+                      მიმდინარე ნაშთი
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formStock}
+                      onChange={(e) => setFormStock(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">
+                      მინიმალური მარაგი
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formMinStock}
+                      onChange={(e) => setFormMinStock(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Sold by Weight Toggle */}
+                <div
+                  onClick={() => setFormIsWeighted(!formIsWeighted)}
+                  className={`p-3 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                    formIsWeighted
+                      ? 'border-emerald-500 bg-emerald-50/80'
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100/80'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                        formIsWeighted ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-200 text-slate-600'
+                      }`}
+                    >
+                      <Scale className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs block leading-tight">
+                        ეს პროდუქტი წონით გაიყიდება? (კგ / გრამობით)
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                        {formIsWeighted
+                          ? '✅ ჩართულია: POS-ში ხელმისაწვდომი იქნება წონის ღილაკი და გრამების კალკულატორი.'
+                          : '❌ გამორთულია (სნიკერსი, ბაუნტი, სასმელი...): პროდუქტი გაიყიდება მხოლოდ მთელი ცალობით (1, 2, 3...).'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="relative inline-flex items-center shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={formIsWeighted}
+                      onChange={(e) => setFormIsWeighted(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div
+                      className={`w-11 h-6 rounded-full transition-colors relative ${
+                        formIsWeighted ? 'bg-emerald-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`block w-5 h-5 bg-white rounded-full transition-transform absolute top-0.5 left-0.5 shadow-xs ${
+                          formIsWeighted ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              {/* Action Buttons - Locked/Fixed at bottom */}
+              <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}
-                  className="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl transition-colors"
+                  className="px-4 py-2 sm:py-2.5 border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
                 >
                   გაუქმება
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all"
+                  className="px-5 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 text-xs sm:text-sm transition-all"
                 >
                   {isSubmitting ? 'ინახება...' : 'შენახვა'}
                 </button>
@@ -897,84 +900,86 @@ export default function ProductsPage() {
 
       {/* STOCK REPLENISHMENT MODAL */}
       {isStockModalOpen && stockModalProduct && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-emerald-700 text-white p-5 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
+            <div className="bg-emerald-700 text-white px-5 py-4 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-base font-bold">მარაგის მიღება (Stock-In)</h3>
+                <h3 className="text-sm sm:text-base font-bold">მარაგის მიღება (Stock-In)</h3>
                 <p className="text-xs text-emerald-100 mt-0.5 truncate max-w-xs">
                   {stockModalProduct.name}
                 </p>
               </div>
               <button
                 onClick={() => setIsStockModalOpen(false)}
-                className="text-emerald-200 hover:text-white"
+                className="text-emerald-200 hover:text-white p-1 rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveStock} className="p-6 space-y-4 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
-                <span className="text-slate-500 font-semibold">მიმდინარე ნაშთი:</span>
-                <span className="text-sm font-black text-slate-800">
-                  {stockModalProduct.stock} ერთეული
-                </span>
+            <form onSubmit={handleSaveStock} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+              <div className="p-4 sm:p-6 space-y-3.5 overflow-y-auto flex-1 scrollbar-thin">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
+                  <span className="text-slate-500 font-semibold">მიმდინარე ნაშთი:</span>
+                  <span className="text-sm font-black text-slate-800">
+                    {stockModalProduct.stock} ერთეული
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">
+                    მისაღები რაოდენობა *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    autoFocus
+                    value={stockAddQty}
+                    onChange={(e) => setStockAddQty(e.target.value)}
+                    placeholder="მაგ: 50"
+                    className="w-full text-lg font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">
+                    მიზეზი / ოპერაცია
+                  </label>
+                  <input
+                    type="text"
+                    value={stockReason}
+                    onChange={(e) => setStockReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">
+                    შენიშვნა / ზედნადების #
+                  </label>
+                  <input
+                    type="text"
+                    value={stockNotes}
+                    onChange={(e) => setStockNotes(e.target.value)}
+                    placeholder="მაგ: ზედნადები #12345"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  მისაღები რაოდენობა *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  autoFocus
-                  value={stockAddQty}
-                  onChange={(e) => setStockAddQty(e.target.value)}
-                  placeholder="მაგ: 50"
-                  className="w-full text-lg font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  მიზეზი / ოპერაცია
-                </label>
-                <input
-                  type="text"
-                  value={stockReason}
-                  onChange={(e) => setStockReason(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">
-                  შენიშვნა / ზედნადების #
-                </label>
-                <input
-                  type="text"
-                  value={stockNotes}
-                  onChange={(e) => setStockNotes(e.target.value)}
-                  placeholder="მაგ: ზედნადები #12345"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="p-3.5 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsStockModalOpen(false)}
-                  className="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl"
+                  className="px-4 py-2 sm:py-2.5 border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm"
                 >
                   გაუქმება
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30"
+                  className="px-5 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 text-xs sm:text-sm"
                 >
                   {isSubmitting ? 'მიღება...' : 'მიღების დადასტურება'}
                 </button>
@@ -986,9 +991,9 @@ export default function ProductsPage() {
 
       {/* CREATE CATEGORY MODAL */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-sm sm:text-base font-bold">ახალი კატეგორიის დამატება</h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
@@ -1003,13 +1008,13 @@ export default function ProductsPage() {
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 space-y-4 text-xs">
+            <div className="p-4 sm:p-5 space-y-4 text-xs overflow-y-auto flex-1 scrollbar-thin">
               {/* Preset Supermarket Categories Grid */}
               <div>
                 <span className="font-bold text-slate-700 uppercase text-[11px] block mb-2">
                   🏪 მაღაზიის მზა კატეგორიები (დააჭირეთ სწრაფად ასარჩევად):
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-56 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-52 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
                   {STANDARD_SUPERMARKET_CATEGORIES.map((preset) => {
                     const existingCat = categories.find(
                       (c) => c.name.trim().toLowerCase() === preset.name.trim().toLowerCase()

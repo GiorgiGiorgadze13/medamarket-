@@ -445,9 +445,9 @@ export default function SalesPage() {
 
       {/* RECEIPT VIEW MODAL */}
       {isReceiptModalOpen && selectedSale && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] my-auto">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
               <span className="font-bold text-sm">ქვითრის დეტალები</span>
               <button
                 onClick={() => setIsReceiptModalOpen(false)}

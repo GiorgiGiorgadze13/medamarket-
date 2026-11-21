@@ -1186,10 +1186,10 @@ export default function POSPage() {
 
       {/* PAYMENT MODAL */}
       {isPaymentModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
             {/* Modal Header */}
-            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between">
+            <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-base sm:text-lg font-bold">გადახდის გაფორმება</h3>
                 <p className="text-xs text-slate-400">აირჩიეთ მეთოდი და შეიყვანეთ თანხა</p>
@@ -1203,7 +1203,7 @@ export default function POSPage() {
             </div>
 
             {/* Total Display */}
-            <div className="bg-emerald-50 border-b border-emerald-100 p-3 sm:p-4 text-center">
+            <div className="bg-emerald-50 border-b border-emerald-100 p-3 sm:p-4 text-center shrink-0">
               <span className="text-[11px] sm:text-xs font-bold text-emerald-800 uppercase tracking-wider block">
                 სულ გადასახდელი თანხა
               </span>
@@ -1212,8 +1212,8 @@ export default function POSPage() {
               </div>
             </div>
 
-            {/* Payment Method Tabs */}
-            <div className="p-4 sm:p-6 space-y-4">
+            {/* Payment Method Tabs & Content (Scrollable) */}
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 scrollbar-thin">
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
@@ -1485,36 +1485,36 @@ export default function POSPage() {
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex items-center gap-2 sm:gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsPaymentModalOpen(false)}
-                  className="w-1/3 py-2.5 sm:py-3 border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
-                >
-                  გაუქმება
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    isSubmittingSale ||
-                    (paymentMethod === 'CASH' && !isCashSufficient) ||
-                    (paymentMethod === 'MIXED' && !isMixedSufficient)
-                  }
-                  onClick={handleCompleteSale}
-                  className="flex-1 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all"
-                >
-                  {isSubmittingSale ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      <span>დადასტურება</span>
-                    </>
-                  )}
-                </button>
-              </div>
+            {/* Action Buttons - Fixed at bottom */}
+            <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center gap-2 sm:gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="w-1/3 py-2.5 sm:py-3 border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition-colors"
+              >
+                გაუქმება
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isSubmittingSale ||
+                  (paymentMethod === 'CASH' && !isCashSufficient) ||
+                  (paymentMethod === 'MIXED' && !isMixedSufficient)
+                }
+                onClick={handleCompleteSale}
+                className="flex-1 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs sm:text-sm shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all"
+              >
+                {isSubmittingSale ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    <span>დადასტურება</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -1673,10 +1673,10 @@ export default function POSPage() {
 
       {/* WEIGHT / GRAMS CALCULATOR MODAL */}
       {weightModalItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
             {/* Header */}
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Scale className="w-5 h-5 text-emerald-400" />
                 <div>
@@ -1694,9 +1694,9 @@ export default function POSPage() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 scrollbar-thin">
               {/* Price per KG info */}
-              <div className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span className="text-slate-500">ფასი 1 კილოგრამზე:</span>
                 <span className="font-extrabold text-slate-900 text-sm">
                   {weightModalItem.unitPrice.toFixed(2)} ₾ / კგ
@@ -1723,9 +1723,9 @@ export default function POSPage() {
                       }
                     }}
                     placeholder="მაგ: 200, 400, 500"
-                    className="w-full text-center text-2xl font-black py-2.5 px-3 bg-emerald-50/50 border-2 border-emerald-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
+                    className="w-full text-center text-2xl font-black py-2 px-3 bg-emerald-50/50 border-2 border-emerald-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
                   />
-                  <span className="absolute right-4 top-3.5 text-xs font-extrabold text-slate-400">
+                  <span className="absolute right-4 top-3 text-xs font-extrabold text-slate-400">
                     გრამი (გ)
                   </span>
                 </div>
@@ -1733,7 +1733,7 @@ export default function POSPage() {
 
               {/* Quick Preset Buttons (100g, 200g, 300g, 400g, 500g, 1kg) */}
               <div>
-                <span className="text-[11px] font-semibold text-slate-500 block mb-2">
+                <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
                   სწრაფი არჩევა:
                 </span>
                 <div className="grid grid-cols-4 gap-1.5 text-xs font-bold">
@@ -1751,7 +1751,7 @@ export default function POSPage() {
                       key={preset.g}
                       type="button"
                       onClick={() => setGramInput(String(preset.g))}
-                      className={`py-2 rounded-lg border text-center transition-all ${
+                      className={`py-1.5 rounded-lg border text-center transition-all ${
                         Number(gramInput) === preset.g
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -1769,7 +1769,7 @@ export default function POSPage() {
                 const kg = Math.round((g / 1000) * 1000) / 1000
                 const cost = kg * weightModalItem.unitPrice
                 return (
-                  <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200 text-xs space-y-1">
+                  <div className="bg-emerald-50 rounded-xl p-2.5 border border-emerald-200 text-xs space-y-1">
                     <div className="flex justify-between">
                       <span className="text-emerald-800">წონა კილოგრამებში:</span>
                       <strong className="text-emerald-950 font-black">{kg.toFixed(3)} კგ</strong>
@@ -1783,25 +1783,25 @@ export default function POSPage() {
                   </div>
                 )
               })()}
+            </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setWeightModalItem(null)}
-                  className="py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                >
-                  გაუქმება
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApplyWeight}
-                  className="py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span>დადასტურება</span>
-                </button>
-              </div>
+            {/* Action Buttons - Fixed at bottom */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 grid grid-cols-2 gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setWeightModalItem(null)}
+                className="py-2.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+              >
+                გაუქმება
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyWeight}
+                className="py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>დადასტურება</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1809,10 +1809,10 @@ export default function POSPage() {
 
       {/* PRODUCT DISCOUNT MODAL */}
       {discountModalItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
             {/* Header */}
-            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <Percent className="w-5 h-5 text-rose-400" />
                 <div>
@@ -1830,9 +1830,9 @@ export default function POSPage() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1 scrollbar-thin">
               {/* Original Price */}
-              <div className="flex justify-between items-center text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="flex justify-between items-center text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span className="text-slate-500">საწყისი ფასი:</span>
                 <span className="font-extrabold text-slate-900 text-sm">
                   {discountModalItem.unitPrice.toFixed(2)} ₾
@@ -1860,9 +1860,9 @@ export default function POSPage() {
                       }
                     }}
                     placeholder="10"
-                    className="w-full text-center text-2xl font-black py-2.5 px-3 bg-rose-50/50 border-2 border-rose-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-900"
+                    className="w-full text-center text-2xl font-black py-2 px-3 bg-rose-50/50 border-2 border-rose-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-900"
                   />
-                  <span className="absolute right-4 top-3.5 text-base font-extrabold text-rose-600">
+                  <span className="absolute right-4 top-3 text-base font-extrabold text-rose-600">
                     %
                   </span>
                 </div>
@@ -1870,7 +1870,7 @@ export default function POSPage() {
 
               {/* Quick Preset Buttons (5%, 10%, 15%, 20%, 25%, 30%, 50%, 0%) */}
               <div>
-                <span className="text-[11px] font-semibold text-slate-500 block mb-2">
+                <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">
                   სწრაფი არჩევა:
                 </span>
                 <div className="grid grid-cols-4 gap-1.5 text-xs font-bold">
@@ -1879,7 +1879,7 @@ export default function POSPage() {
                       key={pct}
                       type="button"
                       onClick={() => setItemDiscountInput(String(pct))}
-                      className={`py-2 rounded-lg border text-center transition-all ${
+                      className={`py-1.5 rounded-lg border text-center transition-all ${
                         Number(itemDiscountInput) === pct
                           ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
@@ -1897,7 +1897,7 @@ export default function POSPage() {
                 const saved = (discountModalItem.unitPrice * pct) / 100
                 const newPrice = Math.max(0, discountModalItem.unitPrice - saved)
                 return (
-                  <div className="bg-rose-50 rounded-xl p-3 border border-rose-200 text-xs space-y-1">
+                  <div className="bg-rose-50 rounded-xl p-2.5 border border-rose-200 text-xs space-y-1">
                     <div className="flex justify-between">
                       <span className="text-rose-800">ფასდაკლების თანხა:</span>
                       <strong className="text-rose-950 font-black">-{saved.toFixed(2)} ₾</strong>
@@ -1911,25 +1911,25 @@ export default function POSPage() {
                   </div>
                 )
               })()}
+            </div>
 
-              {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setDiscountModalItem(null)}
-                  className="py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-                >
-                  დახურვა
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApplyItemDiscount}
-                  className="py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span>დადასტურება</span>
-                </button>
-              </div>
+            {/* Action Buttons - Fixed at bottom */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 grid grid-cols-2 gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDiscountModalItem(null)}
+                className="py-2.5 text-xs font-bold text-slate-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors"
+              >
+                დახურვა
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyItemDiscount}
+                className="py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-600/20 transition-all flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>დადასტურება</span>
+              </button>
             </div>
           </div>
         </div>
