@@ -232,16 +232,20 @@ export const api = {
   // Dashboard & Analytics
   dashboard: {
     getStats: async (params?: { period?: string; startDate?: string; endDate?: string }) => {
-      const res = await apiClient.get<DashboardStats>('/dashboard/stats', { params })
-      return res.data
+      const res = await apiClient.get<any>('/dashboard/stats', { params })
+      return res.data?.stats || res.data
     },
     getRevenueChart: async (params?: { period?: string; startDate?: string; endDate?: string }) => {
-      const res = await apiClient.get<{ chartData: RevenueChartData[] }>('/dashboard/revenue-chart', { params })
-      return Array.isArray(res.data?.chartData) ? res.data.chartData : []
+      const res = await apiClient.get<any>('/dashboard/revenue-chart', { params })
+      if (Array.isArray(res.data?.chartData)) return res.data.chartData
+      if (Array.isArray(res.data)) return res.data
+      return []
     },
     getBestSellers: async (params?: { period?: string; startDate?: string; endDate?: string }) => {
-      const res = await apiClient.get<{ bestSellers: BestSeller[] }>('/dashboard/best-sellers', { params })
-      return Array.isArray(res.data?.bestSellers) ? res.data.bestSellers : []
+      const res = await apiClient.get<any>('/dashboard/best-sellers', { params })
+      if (Array.isArray(res.data?.bestSellers)) return res.data.bestSellers
+      if (Array.isArray(res.data)) return res.data
+      return []
     },
   },
 

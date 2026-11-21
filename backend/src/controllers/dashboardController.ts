@@ -6,84 +6,85 @@ import { AuthRequest } from '../middleware/auth'
  * Helper to calculate start & end timestamps based on named period or custom dates.
  */
 function parseDateRange(period?: string, startDate?: string, endDate?: string): { start: Date; end: Date; isSingleDay: boolean } {
+  // Asia/Tbilisi is UTC+4 year-round (no DST)
   const now = new Date()
+  const tbilisiStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tbilisi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+  const [nowY, nowM, nowD] = tbilisiStr.split('-').map(Number)
 
-  // 1. If explicit startDate is provided
+  // 1. If explicit startDate is provided (format: YYYY-MM-DD)
   if (startDate) {
-    let start: Date
-    let end: Date
-
+    let startY = nowY, startM = nowM, startD = nowD
     if (typeof startDate === 'string' && startDate.length === 10 && !startDate.includes('T')) {
       const [y, m, d] = startDate.split('-').map(Number)
-      start = new Date(y, m - 1, d, 0, 0, 0, 0)
-    } else {
-      start = new Date(String(startDate))
+      startY = y
+      startM = m
+      startD = d
     }
+    // 00:00:00 in Asia/Tbilisi = 20:00:00 previous day UTC
+    const start = new Date(Date.UTC(startY, startM - 1, startD, -4, 0, 0, 0))
 
     const endStr = endDate || startDate
+    let endY = startY, endM = startM, endD = startD
     if (typeof endStr === 'string' && endStr.length === 10 && !endStr.includes('T')) {
       const [y, m, d] = endStr.split('-').map(Number)
-      end = new Date(y, m - 1, d, 23, 59, 59, 999)
-    } else {
-      end = new Date(String(endStr))
-      end.setHours(23, 59, 59, 999)
+      endY = y
+      endM = m
+      endD = d
     }
+    // 23:59:59.999 in Asia/Tbilisi = 19:59:59.999 same day UTC
+    const end = new Date(Date.UTC(endY, endM - 1, endD, 19, 59, 59, 999))
 
-    const isSingleDay =
-      start.getFullYear() === end.getFullYear() &&
-      start.getMonth() === end.getMonth() &&
-      start.getDate() === end.getDate()
-
+    const isSingleDay = startY === endY && startM === endM && startD === endD
     return { start, end, isSingleDay }
   }
 
-  // 2. Based on named periods
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+  // 2. Named periods based on today in Asia/Tbilisi
+  const todayStart = new Date(Date.UTC(nowY, nowM - 1, nowD, -4, 0, 0, 0))
+  const todayEnd = new Date(Date.UTC(nowY, nowM - 1, nowD, 19, 59, 59, 999))
 
   switch (period) {
     case 'today':
       return { start: todayStart, end: todayEnd, isSingleDay: true }
 
     case '2days': {
-      const start = new Date(todayStart)
-      start.setDate(start.getDate() - 1)
+      const start = new Date(Date.UTC(nowY, nowM - 1, nowD - 1, -4, 0, 0, 0))
       return { start, end: todayEnd, isSingleDay: false }
     }
 
     case '3days': {
-      const start = new Date(todayStart)
-      start.setDate(start.getDate() - 2)
+      const start = new Date(Date.UTC(nowY, nowM - 1, nowD - 2, -4, 0, 0, 0))
       return { start, end: todayEnd, isSingleDay: false }
     }
 
     case 'week':
     case 'weekly': {
-      const start = new Date(todayStart)
-      start.setDate(start.getDate() - 6)
+      const start = new Date(Date.UTC(nowY, nowM - 1, nowD - 6, -4, 0, 0, 0))
       return { start, end: todayEnd, isSingleDay: false }
     }
 
     case '2weeks':
     case 'daily': {
-      // 14 days (retaining backward compatibility with old 'daily')
-      const start = new Date(todayStart)
-      start.setDate(start.getDate() - 13)
+      // 14 days
+      const start = new Date(Date.UTC(nowY, nowM - 1, nowD - 13, -4, 0, 0, 0))
       return { start, end: todayEnd, isSingleDay: false }
     }
 
     case 'month':
     case 'monthly': {
       // 30 days
-      const start = new Date(todayStart)
-      start.setDate(start.getDate() - 29)
+      const start = new Date(Date.UTC(nowY, nowM - 1, nowD - 29, -4, 0, 0, 0))
       return { start, end: todayEnd, isSingleDay: false }
     }
 
     case 'year':
     case 'yearly': {
-      // From Jan 1 of current year
-      const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0)
+      // From Jan 1 of current year in Asia/Tbilisi
+      const start = new Date(Date.UTC(nowY, 0, 1, -4, 0, 0, 0))
       return { start, end: todayEnd, isSingleDay: false }
     }
 
@@ -122,9 +123,12 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
       }),
     ])
 
-    const totalRevenue = sales.reduce((sum, s) => sum + Number(s.finalAmount), 0)
+    const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.finalAmount) || 0), 0)
     const totalTransactions = sales.length
-    const totalItemsSold = sales.reduce((sum, s) => sum + s.items.reduce((iSum, item) => iSum + item.quantity, 0), 0)
+    const totalItemsSold = sales.reduce(
+      (sum, s) => sum + (s.items || []).reduce((iSum, item) => iSum + (Number(item.quantity) || 0), 0),
+      0
+    )
 
     let cashRevenue = 0
     let cardRevenue = 0
@@ -134,51 +138,54 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
     let otherCardRevenue = 0
 
     for (const sale of sales) {
+      const finalAmt = Number(sale.finalAmount) || 0
       if (sale.paymentMethod === 'CASH') {
-        cashRevenue += Number(sale.finalAmount)
+        cashRevenue += finalAmt
       } else if (sale.paymentMethod === 'CARD') {
-        const amt = Number(sale.finalAmount)
-        cardRevenue += amt
+        cardRevenue += finalAmt
         const bank = sale.cardBank
-        if (bank === 'BOG') bogCardRevenue += amt
-        else if (bank === 'TBC') tbcCardRevenue += amt
-        else if (bank === 'LIBERTY') libertyCardRevenue += amt
-        else otherCardRevenue += amt
+        if (bank === 'BOG') bogCardRevenue += finalAmt
+        else if (bank === 'TBC') tbcCardRevenue += finalAmt
+        else if (bank === 'LIBERTY') libertyCardRevenue += finalAmt
+        else otherCardRevenue += finalAmt
       } else if (sale.paymentMethod === 'MIXED') {
-        cashRevenue += Number(sale.cashAmount || 0)
-        const amt = Number(sale.cardAmount || 0)
-        cardRevenue += amt
+        const cAmt = Number(sale.cashAmount) || 0
+        const cardAmt = Number(sale.cardAmount) || 0
+        cashRevenue += cAmt
+        cardRevenue += cardAmt
         const bank = sale.cardBank
-        if (bank === 'BOG') bogCardRevenue += amt
-        else if (bank === 'TBC') tbcCardRevenue += amt
-        else if (bank === 'LIBERTY') libertyCardRevenue += amt
-        else otherCardRevenue += amt
+        if (bank === 'BOG') bogCardRevenue += cardAmt
+        else if (bank === 'TBC') tbcCardRevenue += cardAmt
+        else if (bank === 'LIBERTY') libertyCardRevenue += cardAmt
+        else otherCardRevenue += cardAmt
       }
     }
 
     // Gross profit = final revenue - Cost of Goods Sold (purchasePrice * quantity)
     let totalCostOfGoodsSold = 0
     for (const sale of sales) {
-      for (const item of sale.items) {
-        totalCostOfGoodsSold += Number(item.product.purchasePrice) * item.quantity
+      for (const item of (sale.items || [])) {
+        const purchasePrice = Number(item.product?.purchasePrice) || 0
+        const qty = Number(item.quantity) || 0
+        totalCostOfGoodsSold += purchasePrice * qty
       }
     }
-    const grossProfit = totalRevenue - totalCostOfGoodsSold
+    const grossProfit = Math.max(0, Math.round((totalRevenue - totalCostOfGoodsSold) * 100) / 100)
 
     const totalProducts = allProducts.length
     const lowStockProducts = allProducts.filter(p => p.stock > 0 && p.stock <= p.minStockLevel).length
     const outOfStockProducts = allProducts.filter(p => p.stock <= 0).length
 
     res.json({
-      totalRevenue,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
       totalTransactions,
-      totalItemsSold,
-      cashRevenue,
-      cardRevenue,
-      bogCardRevenue,
-      tbcCardRevenue,
-      libertyCardRevenue,
-      otherCardRevenue,
+      totalItemsSold: Math.round(totalItemsSold * 100) / 100,
+      cashRevenue: Math.round(cashRevenue * 100) / 100,
+      cardRevenue: Math.round(cardRevenue * 100) / 100,
+      bogCardRevenue: Math.round(bogCardRevenue * 100) / 100,
+      tbcCardRevenue: Math.round(tbcCardRevenue * 100) / 100,
+      libertyCardRevenue: Math.round(libertyCardRevenue * 100) / 100,
+      otherCardRevenue: Math.round(otherCardRevenue * 100) / 100,
       grossProfit,
       totalProducts,
       lowStockProducts,
@@ -216,17 +223,25 @@ export const getRevenueChart = async (req: AuthRequest, res: Response): Promise<
     for (const sale of sales) {
       let key: string
       if (isSingleDay) {
-        const d = new Date(sale.createdAt)
-        const hour = d.getHours()
-        key = `${hour.toString().padStart(2, '0')}:00`
+        const hourStr = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Tbilisi',
+          hour: '2-digit',
+          hour12: false,
+        }).format(new Date(sale.createdAt))
+        key = `${hourStr}:00`
       } else {
-        key = sale.createdAt.toISOString().slice(0, 10)
+        key = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Tbilisi',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date(sale.createdAt))
       }
 
       if (!grouped[key]) {
         grouped[key] = { revenue: 0, transactions: 0, cash: 0, card: 0 }
       }
-      const amount = Number(sale.finalAmount)
+      const amount = Number(sale.finalAmount) || 0
       grouped[key].revenue += amount
       grouped[key].transactions += 1
 

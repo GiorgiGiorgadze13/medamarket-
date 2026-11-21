@@ -35,6 +35,14 @@ import toast from 'react-hot-toast'
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6']
 
 type PeriodType = 'today' | '2days' | '3days' | 'custom' | 'week' | '2weeks' | 'month' | 'year'
+type BestSellerPeriod = 'today' | 'week' | 'month' | 'year'
+
+const BEST_SELLER_PERIOD_OPTIONS: { id: BestSellerPeriod; label: string }[] = [
+  { id: 'today', label: 'დღევანდელი' },
+  { id: 'week', label: 'კვირის' },
+  { id: 'month', label: 'თვის' },
+  { id: 'year', label: 'წლის' },
+]
 
 const PERIOD_OPTIONS: { id: PeriodType; label: string }[] = [
   { id: 'today', label: 'დღევანდელი' },
@@ -53,6 +61,8 @@ export default function DashboardPage() {
   const [bestSellers, setBestSellers] = useState<BestSeller[]>([])
   const [lowStockProducts, setLowStockProducts] = useState<Product[]>([])
   const [period, setPeriod] = useState<PeriodType>('today')
+  const [bestSellersPeriod, setBestSellersPeriod] = useState<BestSellerPeriod>('today')
+  const [isBestSellersLoading, setIsBestSellersLoading] = useState<boolean>(false)
   const [customStartDate, setCustomStartDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [customEndDate, setCustomEndDate] = useState<string>(() => new Date().toISOString().slice(0, 10))
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -71,6 +81,18 @@ export default function DashboardPage() {
     return match?.label || 'დღევანდელი'
   }
 
+  const loadBestSellers = async (periodToLoad: BestSellerPeriod = bestSellersPeriod) => {
+    setIsBestSellersLoading(true)
+    try {
+      const bestSellersData = await api.dashboard.getBestSellers({ period: periodToLoad })
+      setBestSellers(Array.isArray(bestSellersData) ? bestSellersData : [])
+    } catch (err) {
+      console.error('Failed to load best sellers:', err)
+    } finally {
+      setIsBestSellersLoading(false)
+    }
+  }
+
   const loadDashboardData = async () => {
     setIsLoading(true)
     try {
@@ -86,7 +108,7 @@ export default function DashboardPage() {
       const [statsData, chartRes, bestSellersData, prods] = await Promise.all([
         api.dashboard.getStats(params),
         api.dashboard.getRevenueChart(params),
-        api.dashboard.getBestSellers(params),
+        api.dashboard.getBestSellers({ period: bestSellersPeriod }),
         api.products.getAll({ lowStock: true }),
       ])
       setStats(statsData)
@@ -104,6 +126,10 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboardData()
   }, [period, customStartDate, customEndDate])
+
+  useEffect(() => {
+    loadBestSellers(bestSellersPeriod)
+  }, [bestSellersPeriod])
 
   // Payment Breakdown for Pie Chart
   const paymentBreakdownData = stats
@@ -469,14 +495,38 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top 10 Best Sellers */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Award className="w-5 h-5 text-amber-500" />
-            <h3 className="text-sm font-bold text-slate-800">
-              ტოპ გაყიდვადი პროდუქტები ({getActivePeriodLabel()})
-            </h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
+            <div className="flex items-center gap-2">
+              <Award className="w-5 h-5 text-amber-500 shrink-0" />
+              <h3 className="text-sm font-bold text-slate-800">
+                ტოპ გაყიდვადი პროდუქტები
+              </h3>
+            </div>
+            {/* Period tabs: დღევანდელი, კვირის, თვის, წლის */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1 self-start sm:self-auto overflow-x-auto max-w-full">
+              {BEST_SELLER_PERIOD_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setBestSellersPeriod(opt.id)}
+                  className={`px-2.5 py-1 rounded-lg transition-all whitespace-nowrap ${
+                    bestSellersPeriod === opt.id
+                      ? 'bg-white text-slate-900 shadow-xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {bestSellers.length === 0 ? (
+          {isBestSellersLoading ? (
+            <div className="py-8 flex justify-center items-center text-slate-400 text-xs">
+              <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+              <span>იტვირთება...</span>
+            </div>
+          ) : bestSellers.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-8">გაყიდვების მონაცემი არ არის</p>
           ) : (
             <div className="divide-y divide-slate-100">

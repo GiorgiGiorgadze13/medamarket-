@@ -423,7 +423,7 @@ export default function POSPage() {
           discountPercent: item.discountPercent || 0,
         })),
         paymentMethod,
-        discountAmount: totalDiscount,
+        discountAmount: Number(discount) || 0,
       }
 
       const resolvedCardBank =
