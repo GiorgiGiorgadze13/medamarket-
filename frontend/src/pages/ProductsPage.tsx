@@ -19,6 +19,9 @@ import {
   Boxes,
   RefreshCw,
   Scale,
+  Save,
+  ChevronDown,
+  Check,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -81,6 +84,8 @@ export default function ProductsPage() {
   const [formStock, setFormStock] = useState<string>('0')
   const [formMinStock, setFormMinStock] = useState<string>('5')
   const [formIsWeighted, setFormIsWeighted] = useState<boolean>(false)
+  const [isCategorySelectOpen, setIsCategorySelectOpen] = useState<boolean>(false)
+  const [categorySearchQuery, setCategorySearchQuery] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
 
   // Load Data
@@ -124,6 +129,8 @@ export default function ProductsPage() {
     setFormStock('0')
     setFormMinStock('5')
     setFormIsWeighted(false)
+    setIsCategorySelectOpen(false)
+    setCategorySearchQuery('')
     setIsProductModalOpen(true)
   }
 
@@ -138,6 +145,8 @@ export default function ProductsPage() {
     setFormStock(product.stock.toString())
     setFormMinStock(product.minStockLevel.toString())
     setFormIsWeighted(Boolean(product.isWeighted))
+    setIsCategorySelectOpen(false)
+    setCategorySearchQuery('')
     setIsProductModalOpen(true)
   }
 
@@ -334,6 +343,13 @@ export default function ProductsPage() {
     )
     return { totalCount, lowStockCount, outOfStockCount, totalInventoryValue }
   }, [products])
+
+  // Filtered categories for Add/Edit product modal search
+  const filteredModalCategories = useMemo(() => {
+    const q = categorySearchQuery.toLowerCase().trim()
+    if (!q) return categories || []
+    return (categories || []).filter((c) => c.name.toLowerCase().includes(q))
+  }, [categories, categorySearchQuery])
 
   return (
     <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-4 sm:space-y-6">
@@ -648,21 +664,40 @@ export default function ProductsPage() {
       {isProductModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-150 my-auto">
-            {/* Header */}
-            <div className="bg-slate-900 text-white px-5 py-3.5 sm:py-4 flex items-center justify-between shrink-0">
-              <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
-                <Package className="w-5 h-5 text-emerald-400" />
-                <span>{editingProduct ? 'პროდუქტის რედაქტირება' : 'ახალი პროდუქტის დამატება'}</span>
+            {/* Header with Save Button right at the top */}
+            <div className="bg-slate-900 text-white px-4 sm:px-5 py-3 sm:py-3.5 flex items-center justify-between shrink-0 gap-2">
+              <h3 className="text-sm sm:text-base font-bold flex items-center gap-2 truncate">
+                <Package className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span className="truncate">{editingProduct ? 'პროდუქტის რედაქტირება' : 'ახალი პროდუქტის დამატება'}</span>
               </h3>
-              <button
-                onClick={() => setIsProductModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="px-3 py-1.5 border border-slate-700 hover:bg-slate-800 text-slate-300 font-medium rounded-xl text-xs transition-colors"
+                >
+                  გაუქმება
+                </button>
+                <button
+                  type="submit"
+                  form="product-form"
+                  disabled={isSubmitting}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white font-bold rounded-xl shadow-md shadow-emerald-600/30 text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{isSubmitting ? 'ინახება...' : 'შენახვა'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg ml-0.5"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
+            <form id="product-form" onSubmit={handleSaveProduct} className="flex flex-col flex-1 min-h-0 overflow-hidden text-xs">
               <div className="p-4 sm:p-5 space-y-3 sm:space-y-3.5 overflow-y-auto flex-1 scrollbar-thin">
                 {/* Product Name */}
                 <div>
@@ -703,9 +738,9 @@ export default function ProductsPage() {
                   />
                 </div>
 
-                {/* Category */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
+                {/* Category with Searchable Options & Scroll */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
                     <label className="block font-bold text-slate-700 uppercase">
                       კატეგორია *
                     </label>
@@ -718,49 +753,97 @@ export default function ProductsPage() {
                       <span>ახალი კატეგორია</span>
                     </button>
                   </div>
-                  <select
-                    required
-                    value={formCategoryId}
-                    onChange={(e) => setFormCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium text-xs sm:text-sm bg-white"
-                  >
-                    <option value="" disabled>
-                      აირჩიეთ კატეგორია
-                    </option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
 
-                  {/* Quick Category Selection Chips */}
-                  {categories.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        სწრაფი არჩევანი (დააჭირეთ სასურველ კატეგორიას):
+                  {/* Category Dropdown Trigger */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsCategorySelectOpen(!isCategorySelectOpen)}
+                      className={`w-full px-3 py-2.5 bg-white border rounded-xl flex items-center justify-between text-xs sm:text-sm font-semibold transition-all ${
+                        isCategorySelectOpen
+                          ? 'border-emerald-600 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'border-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      <span className={formCategoryId ? 'text-slate-900 font-bold truncate' : 'text-slate-400 font-normal truncate'}>
+                        {categories.find((c) => c.id === formCategoryId)?.name || 'აირჩიეთ კატეგორია...'}
                       </span>
-                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-slate-50 rounded-xl border border-slate-200 scrollbar-thin">
-                        {categories.map((c) => {
-                          const isSelected = formCategoryId === c.id
-                          return (
+                      <ChevronDown
+                        className={`w-4 h-4 text-slate-400 transition-transform duration-200 shrink-0 ${
+                          isCategorySelectOpen ? 'rotate-180 text-emerald-600' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {/* Hidden input for HTML5 form validation */}
+                    <input
+                      type="text"
+                      value={formCategoryId}
+                      onChange={() => {}}
+                      required
+                      className="sr-only"
+                      tabIndex={-1}
+                    />
+
+                    {/* Searchable Options Dropdown Panel */}
+                    {isCategorySelectOpen && (
+                      <div className="mt-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shadow-lg animate-in fade-in duration-150">
+                        {/* Search Bar with Search Icon */}
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+                          <input
+                            type="text"
+                            value={categorySearchQuery}
+                            onChange={(e) => setCategorySearchQuery(e.target.value)}
+                            placeholder="მოძებნეთ კატეგორია..."
+                            className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                            autoFocus
+                          />
+                          {categorySearchQuery && (
                             <button
-                              key={c.id}
                               type="button"
-                              onClick={() => setFormCategoryId(c.id)}
-                              className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all ${
-                                isSelected
-                                  ? 'bg-emerald-600 text-white shadow-xs'
-                                  : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-200'
-                              }`}
+                              onClick={() => setCategorySearchQuery('')}
+                              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
                             >
-                              {c.name}
+                              <X className="w-3.5 h-3.5" />
                             </button>
-                          )
-                        })}
+                          )}
+                        </div>
+
+                        {/* Scrollable list of category options */}
+                        <div className="max-h-48 overflow-y-auto space-y-0.5 scrollbar-thin">
+                          {filteredModalCategories.length === 0 ? (
+                            <div className="p-3 text-center text-xs text-slate-400">
+                              კატეგორია ვერ მოიძებნა
+                            </div>
+                          ) : (
+                            filteredModalCategories.map((c) => {
+                              const isSelected = formCategoryId === c.id
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormCategoryId(c.id)
+                                    setIsCategorySelectOpen(false)
+                                    setCategorySearchQuery('')
+                                  }}
+                                  className={`w-full px-3 py-2 text-left rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
+                                    isSelected
+                                      ? 'bg-emerald-600 text-white shadow-xs'
+                                      : 'hover:bg-slate-200/70 text-slate-700 bg-white border border-slate-100'
+                                  }`}
+                                >
+                                  <span>{c.name}</span>
+                                  {isSelected && <Check className="w-4 h-4 shrink-0" />}
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 {/* Price Row */}
