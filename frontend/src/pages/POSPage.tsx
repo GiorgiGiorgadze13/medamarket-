@@ -491,24 +491,24 @@ export default function POSPage() {
 
   // Reusable Cart UI (used in both desktop sidebar & mobile drawer)
   const renderCartUI = (isMobileDrawer = false) => (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full min-h-0 bg-white">
       {/* Cart Header */}
-      <div className="p-3.5 sm:p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+      <div className="p-2.5 sm:p-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
-            <ShoppingCart className="w-4 h-4" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+            <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-800">მიმდინარე კალათა</h2>
-            <p className="text-[11px] text-slate-500">{totalItems} პროდუქტი</p>
+            <h2 className="text-xs sm:text-sm font-bold text-slate-800">მიმდინარე კალათა</h2>
+            <p className="text-[10px] sm:text-[11px] text-slate-500">{totalItems} პროდუქტი</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           {cart.length > 0 && (
             <button
               onClick={clearCart}
-              className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors"
+              className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>გასუფთავება</span>
@@ -526,16 +526,26 @@ export default function POSPage() {
       </div>
 
       {/* Cart Items List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2">
+      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 p-1.5 sm:p-2">
         {cart.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-              <ShoppingCart className="w-7 h-7 sm:w-8 sm:h-8 text-slate-300" />
+          <div className="h-full flex flex-col items-center justify-center text-slate-400 p-3 sm:p-4 text-center">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-2 text-slate-300 shrink-0">
+              <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <p className="text-sm font-semibold text-slate-700">კალათა ცარიელია</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-[220px]">
-              დაასკანერეთ შტრიხ-კოდი ან აირჩიეთ პროდუქტი კატალოგიდან
+            <p className="text-xs sm:text-sm font-bold text-slate-700">კალათა ცარიელია</p>
+            <p className="text-[11px] text-slate-400 mt-1 max-w-[200px] leading-tight">
+              დაასკანერეთ შტრიხ-კოდი ან აირჩიეთ პროდუქტი
             </p>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 w-full max-w-[190px] text-[10px] text-slate-400 space-y-1">
+              <div className="flex justify-between items-center">
+                <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-semibold">Enter</span>
+                <span>ძებნა / დამატება</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-semibold">F4</span>
+                <span>გადახდა</span>
+              </div>
+            </div>
           </div>
         ) : (
           cart.map((item) => {
@@ -702,7 +712,7 @@ export default function POSPage() {
       </div>
 
       {/* Cart Summary & Checkout Footer */}
-      <div className="border-t border-slate-200 bg-slate-50 p-3.5 sm:p-4 space-y-3 shrink-0">
+      <div className="border-t border-slate-200 bg-slate-50 p-2.5 sm:p-3.5 space-y-2 shrink-0">
         {/* Subtotal */}
         <div className="flex items-center justify-between text-xs text-slate-600">
           <span>ქვეჯამი:</span>
@@ -723,7 +733,7 @@ export default function POSPage() {
           <div className="flex items-center justify-between text-xs text-rose-600 font-medium">
             <span className="flex items-center gap-1">
               <Percent className="w-3 h-3" />
-              <span>პროდუქტის ფასდაკლება:</span>
+              <span>ფასდაკლება:</span>
             </span>
             <span className="font-bold">-{itemDiscountsTotal.toFixed(2)} ₾</span>
           </div>
@@ -748,8 +758,8 @@ export default function POSPage() {
 
         {/* Discount Input toggle */}
         {showDiscountInput && (
-          <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="bg-white p-2 rounded-lg border border-slate-200 space-y-1.5">
+            <div className="flex items-center gap-1.5">
               <input
                 type="number"
                 min="0"
@@ -758,7 +768,7 @@ export default function POSPage() {
                 value={discountInputValue}
                 onChange={(e) => setDiscountInputValue(e.target.value)}
                 placeholder="0.00"
-                className="flex-1 px-2.5 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-emerald-500 focus:outline-none"
               />
               <button
                 onClick={() => {
@@ -766,12 +776,12 @@ export default function POSPage() {
                   setDiscount(Math.min(subtotal, Math.max(0, num)))
                   setShowDiscountInput(false)
                 }}
-                className="px-3 py-1 bg-emerald-600 text-white rounded text-xs font-semibold hover:bg-emerald-700"
+                className="px-2.5 py-1 bg-emerald-600 text-white rounded text-xs font-semibold hover:bg-emerald-700"
               >
                 შენახვა
               </button>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               {[5, 10, 15, 20].map((pct) => (
                 <button
                   key={pct}
@@ -780,7 +790,7 @@ export default function POSPage() {
                     setDiscount(val)
                     setShowDiscountInput(false)
                   }}
-                  className="flex-1 py-1 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-700"
+                  className="flex-1 py-0.5 text-[10px] font-bold bg-slate-100 hover:bg-slate-200 rounded text-slate-700"
                 >
                   {pct}%
                 </button>
@@ -790,15 +800,15 @@ export default function POSPage() {
         )}
 
         {/* Grand Total */}
-        <div className="pt-2 border-t border-slate-200 flex items-baseline justify-between">
+        <div className="pt-1.5 border-t border-slate-200 flex items-baseline justify-between">
           <div>
-            <span className="text-xs uppercase font-extrabold tracking-wider text-slate-500 block">
+            <span className="text-[10px] sm:text-xs uppercase font-extrabold tracking-wider text-slate-500 block leading-tight">
               სულ გადასახდელი
             </span>
-            <span className="text-[11px] text-slate-400">დღგ ჩათვლით</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400">დღგ ჩათვლით</span>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 tracking-tight">
-            {total.toFixed(2)} <span className="text-base sm:text-lg font-bold">₾</span>
+          <div className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight">
+            {total.toFixed(2)} <span className="text-sm font-bold">₾</span>
           </div>
         </div>
 
@@ -806,30 +816,30 @@ export default function POSPage() {
         <button
           onClick={handleOpenPayment}
           disabled={cart.length === 0}
-          className="w-full py-3 sm:py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 text-sm sm:text-base transition-all duration-150"
+          className="w-full py-2.5 sm:py-3 px-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 text-xs sm:text-sm transition-all duration-150"
         >
           <span>გადახდა (F4)</span>
-          <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+          <ArrowRight className="w-4 h-4" />
         </button>
       </div>
     </div>
   )
 
   return (
-    <div className="flex flex-col lg:flex-row h-full bg-slate-100 overflow-hidden select-none font-sans relative">
+    <div className="flex flex-col lg:flex-row h-full w-full min-h-0 min-w-0 bg-slate-100 overflow-hidden select-none font-sans relative">
       {/* PRODUCTS & CATALOG AREA */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200 pb-16 lg:pb-0">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col h-full overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200 pb-16 lg:pb-0">
         {/* Top Header Bar */}
-        <header className="bg-white border-b border-slate-200 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4 shadow-xs shrink-0">
+        <header className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 shadow-xs shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-200 text-[11px] sm:text-xs font-semibold">
+            <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg border border-emerald-200 text-[11px] sm:text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-              <Barcode className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+              <Barcode className="w-3.5 h-3.5 text-emerald-600" />
               <span className="hidden sm:inline">USB HID სკანერი აქტიურია</span>
               <span className="sm:hidden">სკანერი ON</span>
             </div>
             <span className="text-xs text-slate-400 hidden sm:inline">|</span>
-            <span className="text-xs font-medium text-slate-600 truncate max-w-[140px] sm:max-w-none">
+            <span className="text-xs font-medium text-slate-600 truncate max-w-[130px] sm:max-w-none">
               მოლარე: <strong className="text-slate-800">{user?.name}</strong>
             </span>
           </div>
@@ -850,10 +860,10 @@ export default function POSPage() {
         </header>
 
         {/* Search & Category Filter */}
-        <div className="bg-white border-b border-slate-200 p-3 sm:p-4 space-y-2.5 sm:space-y-3 shrink-0">
+        <div className="bg-white border-b border-slate-200 p-2.5 sm:p-3 space-y-2 shrink-0">
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <Search className="w-4 h-4" />
             </div>
             <input
               ref={searchInputRef}
@@ -908,12 +918,12 @@ export default function POSPage() {
                 }
               }}
               placeholder="მოძებნეთ დასახელებით ან შტრიხ-კოდით (Enter)..."
-              className="w-full pl-10 pr-9 py-2 sm:py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
+              className="w-full pl-9 pr-8 py-1.5 sm:py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -921,10 +931,10 @@ export default function POSPage() {
           </div>
 
           {/* Categories Horizontal Scroll */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
             <button
               onClick={() => setSelectedCategory('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                 selectedCategory === 'ALL'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -936,7 +946,7 @@ export default function POSPage() {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                   selectedCategory === cat.id
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -949,7 +959,7 @@ export default function POSPage() {
         </div>
 
         {/* Product Catalog Grid */}
-        <div className="flex-1 overflow-y-auto p-2.5 sm:p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3">
           {isLoading ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center">
@@ -964,7 +974,7 @@ export default function POSPage() {
               <p className="text-xs text-slate-400 mt-1">შეცვალეთ ძებნის პარამეტრები ან დაასკანერეთ კოდი</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5">
               {filteredProducts.map((product) => {
                 const isOutOfStock = product.stock <= 0
                 const isLowStock = !isOutOfStock && product.stock <= product.minStockLevel
@@ -988,14 +998,14 @@ export default function POSPage() {
                         toast.success(`+ ${product.name}`, { duration: 1500, id: `pos_add_${product.id}` })
                       }
                     }}
-                    className={`relative text-left bg-white rounded-xl p-2.5 sm:p-3 border transition-all duration-150 flex flex-col justify-between group ${
+                    className={`relative text-left bg-white rounded-xl p-2 sm:p-2.5 border transition-all duration-150 flex flex-col justify-between group min-h-[96px] sm:min-h-[108px] ${
                       isOutOfStock
                         ? 'opacity-50 cursor-not-allowed border-slate-200 bg-slate-50'
                         : 'border-slate-200 hover:border-emerald-500 hover:shadow-md active:scale-[0.98]'
                     }`}
                   >
                     {/* Top: Category & Cart Badge / Actions */}
-                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                    <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-wider">
                         {product.category?.name || 'სხვა'}
                       </span>
@@ -1065,17 +1075,17 @@ export default function POSPage() {
                     </div>
 
                     {/* Middle: Title */}
-                    <h3 className="text-xs font-semibold text-slate-800 line-clamp-2 mb-1.5 leading-snug group-hover:text-emerald-700 transition-colors">
+                    <h3 className="text-xs font-semibold text-slate-800 line-clamp-1 sm:line-clamp-2 mb-1 leading-snug group-hover:text-emerald-700 transition-colors">
                       {product.name}
                     </h3>
 
                     {/* Barcode */}
-                    <p className="text-[10px] font-mono text-slate-400 mb-2 truncate">
+                    <p className="text-[10px] font-mono text-slate-400 mb-1.5 truncate">
                       {product.barcode}
                     </p>
 
                     {/* Bottom: Price & Stock */}
-                    <div className="mt-auto pt-2 border-t border-slate-100 flex items-baseline justify-between">
+                    <div className="mt-auto pt-1.5 border-t border-slate-100 flex items-baseline justify-between">
                       <div className="text-sm sm:text-base font-extrabold text-slate-900">
                         {cartItemDiscount ? (
                           <div className="flex items-baseline gap-1">
@@ -1125,7 +1135,7 @@ export default function POSPage() {
       </div>
 
       {/* DESKTOP CART (visible only on lg+) */}
-      <div className="hidden lg:flex lg:w-[380px] xl:w-[420px] h-full shadow-2xl shrink-0">
+      <div className="hidden lg:flex lg:w-[310px] xl:w-[340px] 2xl:w-[380px] h-full min-h-0 shadow-xl shrink-0">
         {renderCartUI(false)}
       </div>
 

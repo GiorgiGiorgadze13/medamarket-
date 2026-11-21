@@ -9,9 +9,9 @@ export default function Layout() {
   const { user } = useAuth()
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-slate-100 overflow-hidden">
+    <div className="flex flex-col md:flex-row h-full w-full min-h-0 bg-slate-100 overflow-hidden">
       {/* Top Mobile App Bar (visible on < md) */}
-      <header className="md:hidden bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-800 shrink-0 z-30 shadow-md">
+      <header className="md:hidden bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between border-b border-slate-800 shrink-0 z-30 shadow-md">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(true)}
@@ -39,7 +39,7 @@ export default function Layout() {
       <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
 
       {/* Main Page Area */}
-      <main className="flex-1 overflow-auto h-[calc(100vh-53px)] md:h-screen">
+      <main className="flex-1 min-w-0 min-h-0 h-full overflow-y-auto flex flex-col">
         <Outlet />
       </main>
     </div>
