@@ -526,7 +526,7 @@ export default function POSPage() {
       </div>
 
       {/* Cart Items List */}
-      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 p-1.5 sm:p-2">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 p-2 sm:p-2.5">
         {cart.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 p-3 sm:p-4 text-center">
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-2 text-slate-300 shrink-0">
@@ -563,48 +563,60 @@ export default function POSPage() {
             return (
               <div
                 key={item.product.id}
-                className="p-2.5 flex items-center gap-2 sm:gap-3 hover:bg-slate-50 rounded-xl transition-colors"
+                className="p-2 sm:p-2.5 bg-white border border-slate-200/90 hover:border-slate-300 rounded-xl transition-all shadow-2xs space-y-1.5"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-xs font-semibold text-slate-800 truncate leading-snug">
+                {/* Top: Product Name (Multi-line) & Delete */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-800 leading-snug break-words whitespace-normal">
                       {item.product.name}
                     </p>
-                    {isWeighted && (
-                      <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 rounded text-[10px] font-bold inline-flex items-center gap-0.5">
-                        <Scale className="w-2.5 h-2.5" /> კგ
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {item.product.barcode}
                       </span>
-                    )}
-                    {discountPct > 0 && (
-                      <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded text-[10px] font-black inline-flex items-center gap-0.5 shadow-xs">
-                        <Percent className="w-2.5 h-2.5" /> -{discountPct}%
-                      </span>
-                    )}
+                      {isWeighted && (
+                        <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 rounded text-[10px] font-bold inline-flex items-center gap-0.5">
+                          <Scale className="w-2.5 h-2.5" /> კგ
+                        </span>
+                      )}
+                      {discountPct > 0 && (
+                        <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded text-[10px] font-black inline-flex items-center gap-0.5 shadow-xs">
+                          <Percent className="w-2.5 h-2.5" /> -{discountPct}%
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+
+                  <button
+                    type="button"
+                    onClick={() => removeFromCart(item.product.id)}
+                    className="text-slate-300 hover:text-rose-600 p-1 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                    title="წაშლა"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Bottom: Price & Modifiers on Left, Quantity & Total on Right */}
+                <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100">
+                  {/* Left: Unit Price & Modifiers */}
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                     {discountPct > 0 ? (
                       <div className="flex items-baseline gap-1">
-                        <span className="text-[11px] line-through text-slate-400">
-                          {basePrice.toFixed(2)} ₾
+                        <span className="text-[10px] line-through text-slate-400">
+                          {basePrice.toFixed(2)}₾
                         </span>
-                        <span className="text-xs font-black text-rose-600">
-                          {effectivePrice.toFixed(2)} ₾
+                        <span className="text-xs font-bold text-rose-600">
+                          {effectivePrice.toFixed(2)}₾
                         </span>
                       </div>
                     ) : (
-                      <span className="text-xs font-medium text-slate-500">
-                        {basePrice.toFixed(2)} ₾
+                      <span className="text-xs font-bold text-slate-700">
+                        {basePrice.toFixed(2)}₾
                       </span>
                     )}
-                    {isWeighted && (item.quantity < 1 || !Number.isInteger(item.quantity)) ? (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">
-                        {item.quantity} კგ ({Math.round(item.quantity * 1000)}გ)
-                      </span>
-                    ) : (
-                      <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
-                        ({item.product.barcode})
-                      </span>
-                    )}
+
                     {isWeighted && (
                       <button
                         type="button"
@@ -618,12 +630,13 @@ export default function POSPage() {
                           })
                         }
                         title="წონის შეყვანა (გრამი / კგ)"
-                        className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition-colors"
+                        className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-1.5 py-0.5 rounded transition-colors"
                       >
-                        <Scale className="w-3 h-3 text-blue-600" />
+                        <Scale className="w-2.5 h-2.5 text-blue-600" />
                         <span>წონა</span>
                       </button>
                     )}
+
                     <button
                       type="button"
                       onClick={() =>
@@ -635,76 +648,71 @@ export default function POSPage() {
                         })
                       }
                       title="ფასდაკლების მითითება (%)"
-                      className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                      className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
                         discountPct > 0
                           ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
                           : 'text-slate-600 bg-slate-100 hover:bg-rose-50 hover:text-rose-700'
                       }`}
                     >
-                      <Percent className="w-3 h-3 text-rose-500" />
-                      <span>{discountPct > 0 ? `-${discountPct}%` : 'ფასდაკლება'}</span>
+                      <Percent className="w-2.5 h-2.5 text-rose-500" />
+                      <span>{discountPct > 0 ? `-${discountPct}%` : '%'}</span>
                     </button>
                   </div>
-                </div>
 
-                {/* Quantity controls */}
-                <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-                  <button
-                    onClick={() => {
-                      if (isWeighted) {
-                        const step = item.quantity <= 1 ? 0.1 : 1
-                        updateQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100, maxStock)
-                      } else {
-                        updateQuantity(item.product.id, Math.max(1, Math.round(item.quantity - 1)), maxStock)
-                      }
-                    }}
-                    className="w-6 h-6 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-xs"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <input
-                    type="number"
-                    step={isWeighted ? 'any' : '1'}
-                    min={isWeighted ? '0.001' : '1'}
-                    max={maxStock}
-                    value={item.quantity}
-                    onChange={(e) => {
-                      const rawVal = parseFloat(e.target.value)
-                      if (!isNaN(rawVal) && rawVal > 0) {
-                        const val = isWeighted ? rawVal : Math.max(1, Math.round(rawVal))
-                        updateQuantity(item.product.id, val, maxStock)
-                      }
-                    }}
-                    className="w-12 text-center text-xs font-bold bg-white border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                  <button
-                    onClick={() => {
-                      if (isWeighted) {
-                        const step = item.quantity < 1 ? 0.1 : 1
-                        updateQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100, maxStock)
-                      } else {
-                        updateQuantity(item.product.id, Math.round(item.quantity + 1), maxStock)
-                      }
-                    }}
-                    disabled={item.quantity >= maxStock}
-                    className="w-6 h-6 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
+                  {/* Right: Quantity Controls & Item Total */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                    <div className="flex items-center gap-0.5 bg-slate-100 rounded-lg p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isWeighted) {
+                            const step = item.quantity <= 1 ? 0.1 : 1
+                            updateQuantity(item.product.id, Math.round((item.quantity - step) * 100) / 100, maxStock)
+                          } else {
+                            updateQuantity(item.product.id, Math.max(1, Math.round(item.quantity - 1)), maxStock)
+                          }
+                        }}
+                        className="w-5 h-5 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-2xs"
+                      >
+                        <Minus className="w-2.5 h-2.5" />
+                      </button>
+                      <input
+                        type="number"
+                        step={isWeighted ? 'any' : '1'}
+                        min={isWeighted ? '0.001' : '1'}
+                        max={maxStock}
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const rawVal = parseFloat(e.target.value)
+                          if (!isNaN(rawVal) && rawVal > 0) {
+                            const val = isWeighted ? rawVal : Math.max(1, Math.round(rawVal))
+                            updateQuantity(item.product.id, val, maxStock)
+                          }
+                        }}
+                        className="w-9 text-center text-xs font-bold bg-white border border-slate-200 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isWeighted) {
+                            const step = item.quantity < 1 ? 0.1 : 1
+                            updateQuantity(item.product.id, Math.round((item.quantity + step) * 100) / 100, maxStock)
+                          } else {
+                            updateQuantity(item.product.id, Math.round(item.quantity + 1), maxStock)
+                          }
+                        }}
+                        disabled={item.quantity >= maxStock}
+                        className="w-5 h-5 rounded flex items-center justify-center bg-white text-slate-700 hover:bg-slate-200 transition-colors shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
 
-                {/* Item Total */}
-                <div className="text-right w-14 sm:w-16">
-                  <span className="text-xs font-bold text-slate-900 block">{itemTotal} ₾</span>
+                    <div className="text-right min-w-[48px]">
+                      <span className="text-xs font-extrabold text-slate-900 block">{itemTotal} ₾</span>
+                    </div>
+                  </div>
                 </div>
-
-                {/* Delete button */}
-                <button
-                  onClick={() => removeFromCart(item.product.id)}
-                  className="text-slate-300 hover:text-rose-600 p-1 rounded transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
             )
           })
@@ -1075,7 +1083,7 @@ export default function POSPage() {
                     </div>
 
                     {/* Middle: Title */}
-                    <h3 className="text-xs font-semibold text-slate-800 line-clamp-1 sm:line-clamp-2 mb-1 leading-snug group-hover:text-emerald-700 transition-colors">
+                    <h3 className="text-xs font-semibold text-slate-800 line-clamp-2 mb-1 leading-snug group-hover:text-emerald-700 transition-colors break-words">
                       {product.name}
                     </h3>
 
@@ -1135,7 +1143,7 @@ export default function POSPage() {
       </div>
 
       {/* DESKTOP CART (visible only on lg+) */}
-      <div className="hidden lg:flex lg:w-[310px] xl:w-[340px] 2xl:w-[380px] h-full min-h-0 shadow-xl shrink-0">
+      <div className="hidden lg:flex lg:w-[320px] xl:w-[360px] 2xl:w-[400px] h-full min-h-0 shadow-xl shrink-0">
         {renderCartUI(false)}
       </div>
 
